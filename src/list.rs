@@ -7,7 +7,7 @@ pub enum List<T> {
     Nil,
 }
 
-impl<T> List<T>  {
+impl<T> List<T> {
     pub fn car(&self) -> Option<&T> {
         if let List::Cons(v, _) = self {
             Some(v)
@@ -24,8 +24,4 @@ impl<T> List<T>  {
     }
 }
 
-pub struct MemInfo {
-    pub addr: u64,
-    pub size: u64,
-}
 
