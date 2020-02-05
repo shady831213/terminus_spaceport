@@ -24,5 +24,21 @@ fn list_iter() {
         assert_eq!(i.size, i.base);
         assert_eq!(i.base, id);
         id += 1;
-    })
+    });
+    assert_eq!(list.iter().count(), 3)
+}
+
+#[test]
+fn list_append() {
+    let list1 = List::cons(AllocationInfo { base: 1, size: 1 },
+                           &List::cons(AllocationInfo { base: 2, size: 2 }, &List::cons(AllocationInfo { base: 3, size: 3 }, &List::nil())));
+    let list2 = List::cons(AllocationInfo { base: 4, size: 4 },
+                           &List::cons(AllocationInfo { base: 5, size: 5 }, &List::cons(AllocationInfo { base: 6, size: 6 }, &List::nil())));
+    let mut id: u64 = 1;
+    List::append(&list1, &list2).iter().for_each(|i| {
+        assert_eq!(i.size, i.base);
+        assert_eq!(i.base, id);
+        id += 1;
+    });
+    assert_eq!(List::append(&list1, &list2).iter().count(), 6)
 }

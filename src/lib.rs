@@ -6,7 +6,7 @@ mod test;
 //use std::rc::Rc;
 //use crate::list::*;
 
-#[derive(Copy, Clone,Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct AllocationInfo {
     pub base: u64,
     pub size: u64,
