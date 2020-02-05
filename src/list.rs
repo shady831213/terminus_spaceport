@@ -22,7 +22,6 @@ impl<T> List<T> {
         }
     }
 
-    #[inline]
     pub fn iter<'a>(self: &'a Rc<Self>) -> Iter<'a, T> {
         Iter {
             cur:self
