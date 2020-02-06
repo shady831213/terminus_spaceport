@@ -1,5 +1,6 @@
 use crate::list::*;
 use crate::AllocationInfo;
+use crate::Allocator;
 
 #[test]
 fn list_basic() {
@@ -41,4 +42,11 @@ fn list_append() {
         id += 1;
     });
     assert_eq!(List::append(&list1, &list2).iter().count(), 6)
+}
+
+#[test]
+fn basic_alloc() {
+    let allocator = &mut Allocator::new(0, 1024);
+    let block = allocator.alloc(512);
+    println!("{:?}",block);
 }
