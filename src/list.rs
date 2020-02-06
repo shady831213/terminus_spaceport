@@ -57,11 +57,15 @@ pub struct Iter<'a, T> {
 }
 
 impl<'a, T> Iterator for Iter<'a, T> where T: Copy {
-    type Item = T;
+    type Item = &'a Rc<List<T>>;
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.cur;
         self.cur = self.cur.cdr();
-        cur.car()
+        if let &List::Nil = cur.as_ref() {
+            None
+        } else {
+            Some(cur)
+        }
     }
 }
 

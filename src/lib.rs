@@ -6,7 +6,15 @@ mod test;
 use std::rc::Rc;
 use crate::list::*;
 
-#[derive(Copy, Clone, Debug)]
+#[cfg(test)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct AllocationInfo {
+    pub base: u64,
+    pub size: u64,
+}
+
+#[cfg(not(test))]
+#[derive(Copy, Clone)]
 pub struct AllocationInfo {
     pub base: u64,
     pub size: u64,
@@ -14,24 +22,44 @@ pub struct AllocationInfo {
 
 pub struct Allocator {
     pub info: AllocationInfo,
-    list: Rc<List<AllocationInfo>>,
+    free_blocks: Rc<List<AllocationInfo>>,
 }
 
 impl Allocator {
     pub fn new(base: u64, size: u64) -> Allocator {
         Allocator {
             info: AllocationInfo { base: base, size: size },
-            list: List::cons(AllocationInfo { base: base, size: size }, &List::nil()),
+            free_blocks: List::cons(AllocationInfo { base: base, size: size }, &List::nil()),
         }
     }
 
-    pub fn alloc(&mut self, size: u64) -> AllocationInfo {
-        let old = &self.list;
-        self.list = List::append(
-            &List::cons(AllocationInfo { base: old.car().unwrap().base, size: size },
-                        &List::cons(AllocationInfo { base: size, size: old.car().unwrap().size - size }, &List::nil())),
-            old.cdr());
-        self.list.car().unwrap()
+    pub fn alloc(&mut self, size: u64, align: u64) -> Option<AllocationInfo> {
+        let mut front = List::nil();
+
+        let find_fn = |item: &&Rc<List<AllocationInfo>>| {
+            let info = item.car().unwrap();
+            let hit = info.size >= size + (align_up(info.base, align) - info.base);
+            if !hit {
+                front = List::cons(info, &front)
+            } else {
+                if align_up(info.base, align) != info.base {
+                    front = List::cons(AllocationInfo { base: info.base, size: align_up(info.base, align) - info.base }, &front)
+                }
+                if info.size != size + (align_up(info.base, align) - info.base) {
+                    front = List::cons(AllocationInfo { base: align_up(info.base, align) + size, size: info.size - size - (align_up(info.base, align) - info.base) }, &front)
+                }
+            }
+            hit
+        };
+
+        let block = self.free_blocks.iter().find(find_fn);
+        if let Some(item) = block {
+            let result = Some(AllocationInfo { base: align_up(item.car().unwrap().base, align), size: size });
+            self.free_blocks = List::append(&front, item.cdr());
+            result
+        } else {
+            None
+        }
     }
 }
 

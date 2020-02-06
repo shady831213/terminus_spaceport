@@ -22,8 +22,8 @@ fn list_iter() {
                           &List::cons(AllocationInfo { base: 2, size: 2 }, &List::cons(AllocationInfo { base: 3, size: 3 }, &List::nil())));
     let mut id: u64 = 1;
     list.iter().for_each(|i| {
-        assert_eq!(i.size, i.base);
-        assert_eq!(i.base, id);
+        assert_eq!(i.car().unwrap().size, i.car().unwrap().base);
+        assert_eq!(i.car().unwrap().base, id);
         id += 1;
     });
     assert_eq!(list.iter().count(), 3)
@@ -37,8 +37,8 @@ fn list_append() {
                            &List::cons(AllocationInfo { base: 5, size: 5 }, &List::cons(AllocationInfo { base: 6, size: 6 }, &List::nil())));
     let mut id: u64 = 1;
     List::append(&list1, &list2).iter().for_each(|i| {
-        assert_eq!(i.size, i.base);
-        assert_eq!(i.base, id);
+        assert_eq!(i.car().unwrap().size, i.car().unwrap().base);
+        assert_eq!(i.car().unwrap().base, id);
         id += 1;
     });
     assert_eq!(List::append(&list1, &list2).iter().count(), 6)
@@ -46,7 +46,10 @@ fn list_append() {
 
 #[test]
 fn basic_alloc() {
-    let allocator = &mut Allocator::new(0, 1024);
-    let block = allocator.alloc(512);
-    println!("{:?}",block);
+    let allocator = &mut Allocator::new(1, 9);
+    assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo{base:1, size:4}));
+    assert_eq!(allocator.alloc(2, 4), Some(AllocationInfo{base:8, size:2}));
+    assert_eq!(allocator.alloc(1, 1), Some(AllocationInfo{base:5, size:1}));
+    assert_eq!(allocator.alloc(2, 1), Some(AllocationInfo{base:6, size:2}));
+    assert_eq!(allocator.alloc(1, 1), None);
 }
