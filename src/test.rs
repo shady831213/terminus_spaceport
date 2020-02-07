@@ -61,12 +61,11 @@ fn basic_alloc() {
 fn basic_concurrency_alloc() {
     let allocator = Arc::new(LockedAllocator::new(1, 9));
     let (tx, rx) = mpsc::channel();
-    fn do_job<F: Fn(&mut Allocator)+Send+'static>(job: F, tx: &Sender<bool>, la:&Arc<LockedAllocator>) {
+    fn do_job<F: Fn(&LockedAllocator)+Send+'static>(job: F, tx: &Sender<bool>, la:&Arc<LockedAllocator>) {
         let done = mpsc::Sender::clone(tx);
         let _la = Arc::clone(&la);
         thread::spawn(move || {
-            let mut a = _la.lock().unwrap();
-            job(&mut(*a));
+            job(&*_la);
 //            println!("send, done!");
             done.send(true).unwrap();
         });
@@ -79,5 +78,5 @@ fn basic_concurrency_alloc() {
         let _ = rx.recv();
         println!("done!")
     }
-    assert_eq!(allocator.lock().unwrap().alloc(1, 1), None);
+    assert_eq!(allocator.alloc(1, 1), None);
 }
