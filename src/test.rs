@@ -4,6 +4,7 @@ use crate::LockedAllocator;
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::sync::mpsc::Sender;
+use std::borrow::Borrow;
 
 #[test]
 fn list_basic() {
@@ -65,7 +66,7 @@ fn basic_concurrency_alloc() {
         let done = mpsc::Sender::clone(tx);
         let _la = Arc::clone(&la);
         thread::spawn(move || {
-            job(&*_la);
+            job(_la.borrow());
 //            println!("send, done!");
             done.send(true).unwrap();
         });
