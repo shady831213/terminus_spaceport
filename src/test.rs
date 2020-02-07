@@ -1,6 +1,9 @@
 use crate::list::*;
-use crate::AllocationInfo;
-use crate::Allocator;
+use crate::{AllocationInfo, Allocator};
+use crate::LockedAllocator;
+use std::sync::{mpsc, Arc};
+use std::thread;
+use std::sync::mpsc::Sender;
 
 #[test]
 fn list_basic() {
@@ -46,10 +49,35 @@ fn list_append() {
 
 #[test]
 fn basic_alloc() {
-    let allocator = &Allocator::new(1, 9);
-    assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo{base:1, size:4}));
-    assert_eq!(allocator.alloc(2, 4), Some(AllocationInfo{base:8, size:2}));
-    assert_eq!(allocator.alloc(1, 1), Some(AllocationInfo{base:5, size:1}));
-    assert_eq!(allocator.alloc(2, 1), Some(AllocationInfo{base:6, size:2}));
+    let allocator = &mut Allocator::new(1, 9);
+    assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo { base: 1, size: 4 }));
+    assert_eq!(allocator.alloc(2, 4), Some(AllocationInfo { base: 8, size: 2 }));
+    assert_eq!(allocator.alloc(1, 1), Some(AllocationInfo { base: 5, size: 1 }));
+    assert_eq!(allocator.alloc(2, 1), Some(AllocationInfo { base: 6, size: 2 }));
     assert_eq!(allocator.alloc(1, 1), None);
+}
+
+#[test]
+fn basic_concurrency_alloc() {
+    let allocator = Arc::new(LockedAllocator::new(1, 9));
+    let (tx, rx) = mpsc::channel();
+    fn do_job<F: Fn(&mut Allocator)+Send+'static>(job: F, tx: &Sender<bool>, la:&Arc<LockedAllocator>) {
+        let done = mpsc::Sender::clone(tx);
+        let _la = Arc::clone(&la);
+        thread::spawn(move || {
+            let mut a = _la.lock().unwrap();
+            job(&mut(*a));
+//            println!("send, done!");
+            done.send(true).unwrap();
+        });
+    };
+    do_job(|a| { a.alloc(4, 1); }, &tx,&allocator);
+    do_job(|a| { a.alloc(2, 1); }, &tx,&allocator);
+    do_job(|a| { a.alloc(1, 1); }, &tx,&allocator);
+    do_job(|a| { a.alloc(2, 1); }, &tx,&allocator);
+    for _  in 0..=3 {
+        let _ = rx.recv();
+        println!("done!")
+    }
+    assert_eq!(allocator.lock().unwrap().alloc(1, 1), None);
 }

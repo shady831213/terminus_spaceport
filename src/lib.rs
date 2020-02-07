@@ -3,9 +3,9 @@ mod list;
 #[cfg(test)]
 mod test;
 
-use std::rc::Rc;
 use crate::list::*;
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc};
+use core::ops::Deref;
 
 #[cfg(test)]
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -23,21 +23,21 @@ pub struct AllocationInfo {
 
 pub struct Allocator {
     pub info: AllocationInfo,
-    free_blocks: Mutex<Rc<List<AllocationInfo>>>,
+    free_blocks: Arc<List<AllocationInfo>>,
 }
 
 impl Allocator {
     pub fn new(base: u64, size: u64) -> Allocator {
         Allocator {
             info: AllocationInfo { base: base, size: size },
-            free_blocks: Mutex::new(List::cons(AllocationInfo { base: base, size: size }, &List::nil())),
+            free_blocks: List::cons(AllocationInfo { base: base, size: size }, &List::nil()),
         }
     }
 
-    pub fn alloc(&self, size: u64, align: u64) -> Option<AllocationInfo> {
+    pub fn alloc(&mut self, size: u64, align: u64) -> Option<AllocationInfo> {
         let mut front = List::nil();
 
-        let find_fn = |item: &&Rc<List<AllocationInfo>>| {
+        let find_fn = |item: &&Arc<List<AllocationInfo>>| {
             let info = item.car().unwrap();
             let hit = info.size >= size + (align_up(info.base, align) - info.base);
             if !hit {
@@ -53,17 +53,35 @@ impl Allocator {
             hit
         };
 
-        {
-            let mut list = self.free_blocks.lock().unwrap();
-            let block = list.iter().find(find_fn);
-            if let Some(item) = block {
-                let result = Some(AllocationInfo { base: align_up(item.car().unwrap().base, align), size: size });
-                *list = List::append(&front, item.cdr());
-                result
-            } else {
-                None
-            }
+        let block = self.free_blocks.iter().find(find_fn);
+        if let Some(item) = block {
+            let result = Some(AllocationInfo { base: align_up(item.car().unwrap().base, align), size: size });
+            self.free_blocks = List::append(&front, item.cdr());
+            result
+        } else {
+            None
         }
+    }
+}
+
+pub struct LockedAllocator {
+    inner: Mutex<Allocator>
+}
+
+impl LockedAllocator {
+    pub fn new(base: u64, size: u64) -> LockedAllocator {
+        LockedAllocator { inner: Mutex::new(Allocator::new(base, size)) }
+    }
+    pub fn alloc(&self, size: u64, align: u64) -> Option<AllocationInfo> {
+        self.inner.lock().unwrap().alloc(size, align)
+    }
+}
+
+impl Deref for LockedAllocator {
+    type Target = Mutex<Allocator>;
+
+    fn deref(&self) -> &Mutex<Allocator> {
+        &self.inner
     }
 }
 
