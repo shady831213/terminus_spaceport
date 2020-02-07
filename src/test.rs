@@ -46,7 +46,7 @@ fn list_append() {
 
 #[test]
 fn basic_alloc() {
-    let allocator = &mut Allocator::new(1, 9);
+    let allocator = &Allocator::new(1, 9);
     assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo{base:1, size:4}));
     assert_eq!(allocator.alloc(2, 4), Some(AllocationInfo{base:8, size:2}));
     assert_eq!(allocator.alloc(1, 1), Some(AllocationInfo{base:5, size:1}));
