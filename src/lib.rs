@@ -1,5 +1,7 @@
-mod list;
+#![crate_type = "dylib"]
 
+mod list;
+mod capi;
 #[cfg(test)]
 mod test;
 
@@ -21,6 +23,7 @@ pub struct AllocationInfo {
     pub size: u64,
 }
 
+#[repr(C)]
 pub struct Allocator {
     pub info: AllocationInfo,
     free_blocks: Arc<List<AllocationInfo>>,
