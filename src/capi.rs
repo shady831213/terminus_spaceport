@@ -6,12 +6,15 @@ extern "C" fn new_allocator(base: u64, size: u64) -> *const Allocator {
 }
 
 #[no_mangle]
-extern "C" fn alloc(a: &mut Allocator, size: u64, align: u64) -> u64 where {
-    let info = a.alloc(size, align);
-    if let Some(i) = info {
-        i.base
-    } else {
-        panic!("oom!")
+//unsafe raw pointer style
+extern "C" fn alloc(a: *mut Allocator, size: u64, align: u64) -> u64 where {
+    unsafe {
+        let info = (&mut *a).alloc(size, align);
+        if let Some(i) = info {
+            i.base
+        } else {
+            panic!("oom!")
+        }
     }
 }
 
@@ -21,6 +24,7 @@ extern "C" fn new_locked_allocator(base: u64, size: u64) -> *const LockedAllocat
 }
 
 #[no_mangle]
+//safe reference style
 extern "C" fn locked_alloc(a: &LockedAllocator, size: u64, align: u64) -> u64 {
     let info = a.alloc(size, align);
     if let Some(i) = info {
