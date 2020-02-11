@@ -49,6 +49,15 @@ fn list_append() {
 }
 
 #[test]
+fn list_delete() {
+    let list1 = List::cons(AllocationInfo { base: 1, size: 1 },
+                           &List::cons(AllocationInfo { base: 2, size: 2 }, &List::cons(AllocationInfo { base: 3, size: 3 }, &List::nil())));
+    let (item, list2) = List::delete(&list1, |item|{item.car().unwrap().base == 2});
+    assert_eq!(item.unwrap().car().unwrap().size, 2);
+    assert_eq!(list2.iter().count(), 2)
+}
+
+#[test]
 fn basic_alloc() {
     let allocator = &mut Allocator::new(1, 9);
     assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo { base: 1, size: 4 }));

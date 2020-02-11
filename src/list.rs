@@ -21,6 +21,26 @@ impl<T> List<T> where T: Copy {
         }
     }
 
+    pub fn delete<F: Fn(&&Arc<Self>)->bool>(list:&Arc<Self>, condition:F) -> (Option<&Arc<Self>>, Arc<Self>) {
+        let mut front = Self::nil();
+
+        let find_fn = |item: &&Arc<Self>| {
+            let v = item.car().unwrap();
+            let hit = condition(item);
+            if !hit {
+                front = Self::cons(v, &front)
+            }
+            hit
+        };
+
+        let block = list.iter().find(find_fn);
+        if let Some(item) = block {
+            (Some(item), Self::append(&front, item.cdr()))
+        } else {
+            (None, Arc::clone(list))
+        }
+    }
+
     pub fn last<'a>(self: &'a Arc<Self>) -> &'a Arc<Self> {
         if let &Self::Nil = self.cdr().as_ref() {
             self
