@@ -1,2 +1,4 @@
 # dpi_memory
-dpi memory, allocator, model..
+dpi memory in Rust: allocator, model..
+
+# WIP
