@@ -59,6 +59,23 @@ fn basic_alloc() {
 }
 
 #[test]
+fn basic_free() {
+    let allocator = &mut Allocator::new(1, 9);
+    assert_eq!(allocator.alloc(4, 1), Some(AllocationInfo { base: 1, size: 4 }));
+    assert_eq!(allocator.alloc(2, 4), Some(AllocationInfo { base: 8, size: 2 }));
+    assert_eq!(allocator.alloc(1, 1), Some(AllocationInfo { base: 5, size: 1 }));
+    assert_eq!(allocator.alloc(2, 1), Some(AllocationInfo { base: 6, size: 2 }));
+    assert_eq!(allocator.alloc(1, 1), None);
+    allocator.free(8);
+    allocator.free(5);
+    allocator.free(1);
+    allocator.free(6);
+    assert!(allocator.free_blocks.iter().count() == 1);
+    assert_eq!(allocator.free_blocks.car(), Some(AllocationInfo{base:1, size:9}));
+    assert_eq!(allocator.alloced_blocks.car(), None);
+}
+
+#[test]
 fn basic_concurrency_alloc() {
     let allocator = Arc::new(LockedAllocator::new(1, 9));
     let (tx, rx) = mpsc::channel();

@@ -27,6 +27,7 @@ pub struct AllocationInfo {
 pub struct Allocator {
     pub info: AllocationInfo,
     free_blocks: Arc<List<AllocationInfo>>,
+    alloced_blocks: Arc<List<AllocationInfo>>,
 }
 
 impl Allocator {
@@ -34,6 +35,7 @@ impl Allocator {
         Allocator {
             info: AllocationInfo { base: base, size: size },
             free_blocks: List::cons(AllocationInfo { base: base, size: size }, &List::nil()),
+            alloced_blocks: List::nil(),
         }
     }
 
@@ -60,9 +62,69 @@ impl Allocator {
         if let Some(item) = block {
             let result = Some(AllocationInfo { base: align_up(item.car().unwrap().base, align), size: size });
             self.free_blocks = List::append(&front, item.cdr());
+            self.alloced_blocks = List::cons(result.unwrap(), &self.alloced_blocks);
             result
         } else {
             None
+        }
+    }
+
+    pub fn free(&mut self, addr: u64) {
+        let mut front = List::nil();
+
+        let find_fn = |item: &&Arc<List<AllocationInfo>>| {
+            let info = item.car().unwrap();
+            let hit = info.base == addr;
+            if !hit {
+                front = List::cons(info, &front)
+            }
+            hit
+        };
+
+        let block = self.alloced_blocks.iter().find(find_fn);
+        if let Some(item) = block {
+            let mut pre_front = List::nil();
+
+            let pre_find_fn = |_item: &&Arc<List<AllocationInfo>>| {
+                let info = _item.car().unwrap();
+                let hit = info.base + info.size == item.car().unwrap().base;
+                if !hit {
+                    pre_front = List::cons(info, &pre_front)
+                }
+                hit
+            };
+            let pre_block = self.free_blocks.iter().find(pre_find_fn);
+            let pre_info = if let Some(pre) = pre_block {
+                let result = AllocationInfo { base: pre.car().unwrap().base, size: pre.car().unwrap().size + item.car().unwrap().size };
+                self.free_blocks = List::append(&pre_front, pre.cdr());
+                result
+            } else {
+                item.car().unwrap()
+            };
+
+            let mut post_front = List::nil();
+
+            let post_find_fn = |_item: &&Arc<List<AllocationInfo>>| {
+                let info = _item.car().unwrap();
+                let hit = pre_info.base + pre_info.size == info.base;
+                if !hit {
+                    post_front = List::cons(info, &post_front)
+                }
+                hit
+            };
+            let post_block = self.free_blocks.iter().find(post_find_fn);
+            let post_info = if let Some(post) = post_block {
+                let result = AllocationInfo { base: pre_info.base, size: pre_info.size + post.car().unwrap().size };
+                self.free_blocks = List::append(&post_front, post.cdr());
+                result
+            } else {
+                pre_info
+            };
+
+            self.free_blocks = List::cons(post_info, &self.free_blocks);
+            self.alloced_blocks = List::append(&front, item.cdr());
+        } else {
+            panic!(format!("invalid free @{}", addr));
         }
     }
 }
