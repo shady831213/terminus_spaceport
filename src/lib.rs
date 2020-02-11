@@ -40,7 +40,7 @@ impl Allocator {
     }
 
     pub fn alloc(&mut self, size: u64, align: u64) -> Option<AllocationInfo> {
-        let (block, free_blocks) = List::delete(&self.free_blocks,|item|{
+        let (block, free_blocks) = List::delete(&self.free_blocks, |item| {
             let info = item.car().unwrap();
             info.size >= size + (align_up(info.base, align) - info.base)
         });
@@ -62,9 +62,9 @@ impl Allocator {
     }
 
     pub fn free(&mut self, addr: u64) {
-        let (alloced_block, alloced_blocks) = List::delete(&self.alloced_blocks,|item|{item.car().unwrap().base == addr});
+        let (alloced_block, alloced_blocks) = List::delete(&self.alloced_blocks, |item| { item.car().unwrap().base == addr });
         if let Some(item) = alloced_block {
-            let (pre_block, free_blocks) = List::delete(&self.free_blocks, |i|{
+            let (pre_block, free_blocks) = List::delete(&self.free_blocks, |i| {
                 let info = i.car().unwrap();
                 info.base + info.size == item.car().unwrap().base
             });
@@ -76,7 +76,7 @@ impl Allocator {
                 item.car().unwrap()
             };
 
-            let (post_block, free_blocks) = List::delete(&self.free_blocks, |i|{
+            let (post_block, free_blocks) = List::delete(&self.free_blocks, |i| {
                 let info = i.car().unwrap();
                 pre_info.base + pre_info.size == info.base
             });
@@ -106,6 +106,9 @@ impl LockedAllocator {
     }
     pub fn alloc(&self, size: u64, align: u64) -> Option<AllocationInfo> {
         self.inner.lock().unwrap().alloc(size, align)
+    }
+    pub fn free(&self, addr: u64) {
+        self.inner.lock().unwrap().free(addr)
     }
 }
 

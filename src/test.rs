@@ -52,7 +52,7 @@ fn list_append() {
 fn list_delete() {
     let list1 = List::cons(AllocationInfo { base: 1, size: 1 },
                            &List::cons(AllocationInfo { base: 2, size: 2 }, &List::cons(AllocationInfo { base: 3, size: 3 }, &List::nil())));
-    let (item, list2) = List::delete(&list1, |item|{item.car().unwrap().base == 2});
+    let (item, list2) = List::delete(&list1, |item| { item.car().unwrap().base == 2 });
     assert_eq!(item.unwrap().car().unwrap().size, 2);
     assert_eq!(list2.iter().count(), 2)
 }
@@ -80,7 +80,7 @@ fn basic_free() {
     allocator.free(1);
     allocator.free(6);
     assert!(allocator.free_blocks.iter().count() == 1);
-    assert_eq!(allocator.free_blocks.car(), Some(AllocationInfo{base:1, size:9}));
+    assert_eq!(allocator.free_blocks.car(), Some(AllocationInfo { base: 1, size: 9 }));
     assert_eq!(allocator.alloced_blocks.car(), None);
 }
 
@@ -88,22 +88,42 @@ fn basic_free() {
 fn basic_concurrency_alloc() {
     let allocator = Arc::new(LockedAllocator::new(1, 9));
     let (tx, rx) = mpsc::channel();
-    fn do_job<F: Fn(&LockedAllocator)+Send+'static>(job: F, tx: &Sender<bool>, la:&Arc<LockedAllocator>) {
+    fn do_job<F: Fn(&LockedAllocator) -> Option<AllocationInfo> + Send + 'static>(job: F, tx: &Sender<Option<AllocationInfo>>, la: &Arc<LockedAllocator>) {
         let done = mpsc::Sender::clone(tx);
         let _la = Arc::clone(&la);
         thread::spawn(move || {
-            job(_la.borrow());
+            let result = job(_la.borrow());
 //            println!("send, done!");
-            done.send(true).unwrap();
+            done.send(result).unwrap();
         });
     };
-    do_job(|a| { a.alloc(4, 1); }, &tx,&allocator);
-    do_job(|a| { a.alloc(2, 1); }, &tx,&allocator);
-    do_job(|a| { a.alloc(1, 1); }, &tx,&allocator);
-    do_job(|a| { a.alloc(2, 1); }, &tx,&allocator);
-    for _  in 0..=3 {
-        let _ = rx.recv();
+    let mut addrs = vec![];
+
+    do_job(|a| { a.alloc(4, 1) }, &tx, &allocator);
+    do_job(|a| { a.alloc(2, 1) }, &tx, &allocator);
+    do_job(|a| { a.alloc(1, 1) }, &tx, &allocator);
+    do_job(|a| { a.alloc(2, 1) }, &tx, &allocator);
+    for _ in 0..=3 {
+        addrs.push(rx.recv().unwrap());
         println!("done!")
     }
     assert_eq!(allocator.alloc(1, 1), None);
+
+    let mut handles = vec![];
+    for block in addrs {
+        let la = Arc::clone(&allocator);
+        let handle = thread::spawn(move || {
+            la.free(block.unwrap().base);
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+    {
+        let inner = allocator.inner.lock().unwrap();
+        assert!(inner.free_blocks.iter().count() == 1);
+        assert_eq!(inner.free_blocks.car(), Some(AllocationInfo { base: 1, size: 9 }));
+        assert_eq!(inner.alloced_blocks.car(), None);
+    }
 }
