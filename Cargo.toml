@@ -8,6 +8,6 @@ edition = "2018"
 
 [lib]
 name = "dpi_memory"
-crate-type = ["dylib"]
+crate-type = ["staticlib", "dylib"]
 
 [dependencies]

@@ -1,5 +1,3 @@
-#![crate_type = "dylib"]
-
 mod list;
 mod capi;
 #[cfg(test)]
