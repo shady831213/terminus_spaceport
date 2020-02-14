@@ -1,7 +1,6 @@
 use crate::{Allocator, LockedAllocator};
 use std::any::Any;
 use std::ffi::c_void;
-use std::borrow::BorrowMut;
 
 
 #[no_mangle]

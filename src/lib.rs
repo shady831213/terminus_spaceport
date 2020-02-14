@@ -9,20 +9,20 @@ use core::ops::Deref;
 
 #[cfg(test)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct AllocationInfo {
+struct AllocationInfo {
     pub base: u64,
     pub size: u64,
 }
 
 #[cfg(not(test))]
 #[derive(Copy, Clone)]
-pub struct AllocationInfo {
+struct AllocationInfo {
     pub base: u64,
     pub size: u64,
 }
 
 #[repr(C)]
-pub struct Allocator {
+struct Allocator {
     pub info: AllocationInfo,
     free_blocks: Arc<List<AllocationInfo>>,
     alloced_blocks: Arc<List<AllocationInfo>>,
@@ -94,7 +94,7 @@ impl Allocator {
     }
 }
 
-pub struct LockedAllocator {
+struct LockedAllocator {
     inner: Mutex<Allocator>
 }
 
@@ -118,7 +118,7 @@ impl Deref for LockedAllocator {
     }
 }
 
-pub fn align_down(addr: u64, align: u64) -> u64 {
+fn align_down(addr: u64, align: u64) -> u64 {
     if align.is_power_of_two() {
         addr & !(align - 1)
     } else if align == 0 {
@@ -128,6 +128,6 @@ pub fn align_down(addr: u64, align: u64) -> u64 {
     }
 }
 
-pub fn align_up(addr: u64, align: u64) -> u64 {
+fn align_up(addr: u64, align: u64) -> u64 {
     align_down(addr + align - 1, align)
 }
