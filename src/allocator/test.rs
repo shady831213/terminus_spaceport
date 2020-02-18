@@ -1,6 +1,4 @@
-use crate::list::*;
-use crate::{AllocationInfo, Allocator};
-use crate::LockedAllocator;
+use super::*;
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::sync::mpsc::Sender;

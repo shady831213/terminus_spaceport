@@ -1,4 +1,4 @@
-use crate::{Allocator, LockedAllocator};
+use crate::allocator::{Allocator, LockedAllocator};
 use std::any::Any;
 use std::ffi::c_void;
 
