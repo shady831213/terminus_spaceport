@@ -11,3 +11,4 @@ name = "dpi_memory"
 crate-type = ["staticlib", "dylib"]
 
 [dependencies]
+rand = "0.7.3"
