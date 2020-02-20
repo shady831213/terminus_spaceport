@@ -34,22 +34,7 @@ pub trait U8MemAccess {
     fn read(&mut self, addr: u64) -> u8;
 }
 
-pub trait U16MemAccess {
-    fn write(&mut self, addr: u64, data: u16);
-    fn read(&mut self, addr: u64) -> u16;
-}
-
-pub trait U32MemAccess {
-    fn write(&mut self, addr: u64, data: u32);
-    fn read(&mut self, addr: u64) -> u32;
-}
-
-pub trait U64MemAccess {
-    fn write(&mut self, addr: u64, data: u64);
-    fn read(&mut self, addr: u64) -> u64;
-}
-
-trait BytesMemAccess: U8MemAccess {
+pub trait BytesMemAccess: U8MemAccess {
     fn write(&mut self, base: u64, bytes: &[u8]) where {
         bytes.iter().enumerate().for_each(|(offset, data)| { U8MemAccess::write(self, base + offset as u64, *data) });
     }
@@ -57,6 +42,48 @@ trait BytesMemAccess: U8MemAccess {
         bytes.iter_mut().enumerate().for_each(|(offset, data)| { *data = U8MemAccess::read(self, base + offset as u64) });
     }
 }
+
+
+pub trait U16MemAccess:BytesMemAccess {
+    fn write(&mut self, addr: u64, data: u16) {
+        BytesMemAccess::write(self, align_down(addr, size_of::<u16>() as u64), &data.to_le_bytes());
+    }
+
+    fn read(&mut self, addr: u64) -> u16 {
+        let base = align_down(addr, size_of::<u16>() as u64);
+        let mut bytes = [0 as u8; size_of::<u16>()];
+        BytesMemAccess::read(self, base, &mut bytes);
+        u16::from_le_bytes(bytes.try_into().unwrap())
+    }
+}
+
+pub trait U32MemAccess:BytesMemAccess {
+    fn write(&mut self, addr: u64, data: u32) {
+        BytesMemAccess::write(self, align_down(addr, size_of::<u32>() as u64), &data.to_le_bytes());
+    }
+
+    fn read(&mut self, addr: u64) -> u32 {
+        let base = align_down(addr, size_of::<u32>() as u64);
+        let mut bytes = [0 as u8; size_of::<u32>()];
+        BytesMemAccess::read(self, base, &mut bytes);
+        u32::from_le_bytes(bytes.try_into().unwrap())
+    }
+}
+
+pub trait U64MemAccess:BytesMemAccess {
+    fn write(&mut self, addr: u64, data: u64) {
+        BytesMemAccess::write(self, align_down(addr, size_of::<u64>() as u64), &data.to_le_bytes());
+    }
+
+    fn read(&mut self, addr: u64) -> u64 {
+        let base = align_down(addr, size_of::<u64>() as u64);
+        let mut bytes = [0 as u8; size_of::<u64>()];
+        BytesMemAccess::read(self, base, &mut bytes);
+        u64::from_le_bytes(bytes.try_into().unwrap())
+    }
+}
+
+
 
 struct GlobalHeap {
     memroy: HashMap<u64, u8>,
@@ -95,44 +122,11 @@ impl U8MemAccess for GlobalHeap {
     }
 }
 
-impl U16MemAccess for GlobalHeap {
-    fn write(&mut self, addr: u64, data: u16) {
-        BytesMemAccess::write(self, align_down(addr, size_of::<u16>() as u64), &data.to_le_bytes());
-    }
+impl U16MemAccess for GlobalHeap {}
 
-    fn read(&mut self, addr: u64) -> u16 {
-        let base = align_down(addr, size_of::<u16>() as u64);
-        let mut bytes = [0 as u8; size_of::<u16>()];
-        BytesMemAccess::read(self, base, &mut bytes);
-        u16::from_le_bytes(bytes.try_into().unwrap())
-    }
-}
+impl U32MemAccess for GlobalHeap {}
 
-impl U32MemAccess for GlobalHeap {
-    fn write(&mut self, addr: u64, data: u32) {
-        BytesMemAccess::write(self, align_down(addr, size_of::<u32>() as u64), &data.to_le_bytes());
-    }
-
-    fn read(&mut self, addr: u64) -> u32 {
-        let base = align_down(addr, size_of::<u32>() as u64);
-        let mut bytes = [0 as u8; size_of::<u32>()];
-        BytesMemAccess::read(self, base, &mut bytes);
-        u32::from_le_bytes(bytes.try_into().unwrap())
-    }
-}
-
-impl U64MemAccess for GlobalHeap {
-    fn write(&mut self, addr: u64, data: u64) {
-        BytesMemAccess::write(self, align_down(addr, size_of::<u64>() as u64), &data.to_le_bytes());
-    }
-
-    fn read(&mut self, addr: u64) -> u64 {
-        let base = align_down(addr, size_of::<u64>() as u64);
-        let mut bytes = [0 as u8; size_of::<u64>()];
-        BytesMemAccess::read(self, base, &mut bytes);
-        u64::from_le_bytes(bytes.try_into().unwrap())
-    }
-}
+impl U64MemAccess for GlobalHeap {}
 
 struct MemRegion {
     allocator: Allocator,
@@ -154,7 +148,9 @@ impl MemRegion {
     }
 
     fn va2pa(&self, va: u64) -> u64 {
-        va - self.allocator.info.base + self.heap_map.base
+        let pa = va - self.allocator.info.base + self.heap_map.base;
+        assert!(pa >= self.heap_map.base && pa < self.heap_map.base + self.heap_map.size, format!("va {} -> pa {} is out of range {:?}!", va, pa, self.heap_map));
+        pa
     }
 }
 
@@ -168,32 +164,10 @@ impl U8MemAccess for MemRegion {
     }
 }
 
-impl U16MemAccess for MemRegion {
-    fn write(&mut self, addr: u64, data: u16) {
-        U16MemAccess::write(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr), data)
-    }
+impl BytesMemAccess for MemRegion {}
 
-    fn read(&mut self, addr: u64) -> u16 {
-        U16MemAccess::read(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr))
-    }
-}
+impl U16MemAccess for MemRegion {}
 
-impl U32MemAccess for MemRegion {
-    fn write(&mut self, addr: u64, data: u32) {
-        U32MemAccess::write(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr), data)
-    }
+impl U32MemAccess for MemRegion {}
 
-    fn read(&mut self, addr: u64) -> u32 {
-        U32MemAccess::read(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr))
-    }
-}
-
-impl U64MemAccess for MemRegion {
-    fn write(&mut self, addr: u64, data: u64) {
-        U64MemAccess::write(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr), data)
-    }
-
-    fn read(&mut self, addr: u64) -> u64 {
-        U64MemAccess::read(GlobalHeap::get().lock().unwrap().deref_mut(),self.va2pa(addr))
-    }
-}
+impl U64MemAccess for MemRegion {}
