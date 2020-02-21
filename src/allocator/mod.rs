@@ -8,58 +8,44 @@ use std::sync::{Mutex, Arc};
 use core::ops::Deref;
 
 #[cfg(test)]
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub struct AllocationInfo {
-    pub base: u64,
-    pub size: u64,
-}
-
-#[cfg(not(test))]
-#[derive(Copy, Clone, Debug)]
-pub struct AllocationInfo {
-    pub base: u64,
-    pub size: u64,
-}
-
-#[cfg(test)]
 #[repr(C)]
 pub struct Allocator {
-    pub info: AllocationInfo,
-    pub free_blocks: Arc<List<AllocationInfo>>,
-    pub alloced_blocks: Arc<List<AllocationInfo>>,
+    pub info: MemInfo,
+    pub free_blocks: Arc<List<MemInfo>>,
+    pub alloced_blocks: Arc<List<MemInfo>>,
 }
 
 #[cfg(not(test))]
 #[repr(C)]
 pub struct Allocator {
-    pub info: AllocationInfo,
-    free_blocks: Arc<List<AllocationInfo>>,
-    alloced_blocks: Arc<List<AllocationInfo>>,
+    pub info: MemInfo,
+    free_blocks: Arc<List<MemInfo>>,
+    alloced_blocks: Arc<List<MemInfo>>,
 }
 
 impl Allocator {
     pub fn new(base: u64, size: u64) -> Allocator {
         Allocator {
-            info: AllocationInfo { base: base, size: size },
-            free_blocks: List::cons(AllocationInfo { base: base, size: size }, &List::nil()),
+            info: MemInfo { base: base, size: size },
+            free_blocks: List::cons(MemInfo { base: base, size: size }, &List::nil()),
             alloced_blocks: List::nil(),
         }
     }
 
-    pub fn alloc(&mut self, size: u64, align: u64) -> Option<AllocationInfo> {
+    pub fn alloc(&mut self, size: u64, align: u64) -> Option<MemInfo> {
         let (block, free_blocks) = List::delete(&self.free_blocks, |item| {
             let info = item.car().unwrap();
             info.size >= size + (align_up(info.base, align) - info.base)
         });
         if let Some(item) = block {
             let info = item.car().unwrap();
-            let result = Some(AllocationInfo { base: align_up(info.base, align), size: size });
+            let result = Some(MemInfo { base: align_up(info.base, align), size: size });
             self.free_blocks = free_blocks;
             if align_up(info.base, align) != info.base {
-                self.free_blocks = List::cons(AllocationInfo { base: info.base, size: align_up(info.base, align) - info.base }, &self.free_blocks)
+                self.free_blocks = List::cons(MemInfo { base: info.base, size: align_up(info.base, align) - info.base }, &self.free_blocks)
             }
             if info.size != size + (align_up(info.base, align) - info.base) {
-                self.free_blocks = List::cons(AllocationInfo { base: align_up(info.base, align) + size, size: info.size - size - (align_up(info.base, align) - info.base) }, &self.free_blocks)
+                self.free_blocks = List::cons(MemInfo { base: align_up(info.base, align) + size, size: info.size - size - (align_up(info.base, align) - info.base) }, &self.free_blocks)
             }
             self.alloced_blocks = List::cons(result.unwrap(), &self.alloced_blocks);
             result
@@ -78,7 +64,7 @@ impl Allocator {
             let pre_info = if let Some(pre) = pre_block {
                 let info = pre.car().unwrap();
                 self.free_blocks = free_blocks;
-                AllocationInfo { base: info.base, size: info.size + item.car().unwrap().size }
+                MemInfo { base: info.base, size: info.size + item.car().unwrap().size }
             } else {
                 item.car().unwrap()
             };
@@ -90,7 +76,7 @@ impl Allocator {
             let post_info = if let Some(post) = post_block {
                 let info = post.car().unwrap();
                 self.free_blocks = free_blocks;
-                AllocationInfo { base: pre_info.base, size: pre_info.size + info.size }
+                MemInfo { base: pre_info.base, size: pre_info.size + info.size }
             } else {
                 pre_info
             };
@@ -111,7 +97,7 @@ impl LockedAllocator {
     pub fn new(base: u64, size: u64) -> LockedAllocator {
         LockedAllocator { inner: Mutex::new(Allocator::new(base, size)) }
     }
-    pub fn alloc(&self, size: u64, align: u64) -> Option<AllocationInfo> {
+    pub fn alloc(&self, size: u64, align: u64) -> Option<MemInfo> {
         self.inner.lock().unwrap().alloc(size, align)
     }
     pub fn free(&self, addr: u64) {

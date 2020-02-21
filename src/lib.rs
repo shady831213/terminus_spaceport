@@ -3,6 +3,21 @@ use std::collections::HashMap;
 mod allocator;
 mod model;
 mod capi;
+
+#[cfg(test)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct MemInfo {
+    pub base: u64,
+    pub size: u64,
+}
+
+#[cfg(not(test))]
+#[derive(Copy, Clone, Debug)]
+pub struct MemInfo {
+    pub base: u64,
+    pub size: u64,
+}
+
 fn align_down(addr: u64, align: u64) -> u64 {
     if align.is_power_of_two() {
         addr & !(align - 1)

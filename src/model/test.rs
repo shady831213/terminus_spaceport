@@ -4,13 +4,13 @@ use super::*;
 #[test]
 fn region_drop() {
     let heap = Heap::global();
-    println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<AllocationInfo>>());
+    println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<MemInfo>>());
     let region = heap.alloc(9, 1);
     let &info = &region.info;
     let heap1 = Heap::new(&region);
     let remap = Region::mmap(0x80000000, &region);
     let remap2 = Region::mmap(0x10000000, &region);
-    println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<AllocationInfo>>());
+    println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<MemInfo>>());
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).find(|i|{i == &info}), None);
     std::mem::drop(region);
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).find(|i|{i == &info}), None);

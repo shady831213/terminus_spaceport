@@ -4,7 +4,7 @@ mod test;
 extern crate rand;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
-use crate::allocator::{AllocationInfo, LockedAllocator};
+use crate::allocator::LockedAllocator;
 use std::mem::size_of;
 use std::convert::TryInto;
 use std::ops::Deref;
@@ -97,21 +97,21 @@ impl U8Access for Memory {
 
 struct Region {
     memory: Memory,
-    info: AllocationInfo,
+    info: MemInfo,
 }
 
 impl Region {
     fn model(base: u64, size: u64) -> Arc<Region> {
         Arc::new(Region {
             memory: Memory::Model(Arc::new(Mutex::new(HashMap::new()))),
-            info: AllocationInfo { base: base, size: size },
+            info: MemInfo { base: base, size: size },
         })
     }
 
     fn block(base: u64, size: u64, memory: &Arc<Heap>) -> Arc<Region> {
         Arc::new(Region {
             memory: Memory::Block(Arc::clone(memory)),
-            info: AllocationInfo { base: base, size: size },
+            info: MemInfo { base: base, size: size },
         })
     }
 
@@ -119,7 +119,7 @@ impl Region {
         let info = memory.info;
         Arc::new(Region {
             memory: Memory::MMap(Arc::clone(memory)),
-            info: AllocationInfo { base: base, size: info.size },
+            info: MemInfo { base: base, size: info.size },
         })
     }
 
