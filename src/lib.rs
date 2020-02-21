@@ -1,8 +1,10 @@
-use std::collections::HashMap;
-
 mod allocator;
 mod model;
+mod space;
 mod capi;
+
+#[cfg(test)]
+mod test;
 
 #[cfg(test)]
 #[derive(Copy, Clone, Debug, PartialEq)]

@@ -2,6 +2,7 @@
 mod test;
 
 extern crate rand;
+use std::collections::HashMap;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
 use crate::allocator::LockedAllocator;
@@ -95,9 +96,10 @@ impl U8Access for Memory {
     }
 }
 
-struct Region {
+#[repr(C)]
+pub struct Region {
     memory: Memory,
-    info: MemInfo,
+    pub info: MemInfo,
 }
 
 impl Region {
@@ -115,7 +117,7 @@ impl Region {
         })
     }
 
-    fn mmap(base: u64, memory: &Arc<Region>) -> Arc<Region> {
+    pub fn mmap(base: u64, memory: &Arc<Region>) -> Arc<Region> {
         let info = memory.info;
         Arc::new(Region {
             memory: Memory::MMap(Arc::clone(memory)),
@@ -158,14 +160,22 @@ impl Drop for Region {
     }
 }
 
+#[cfg(test)]
+#[repr(C)]
+pub struct Heap {
+    memory: Arc<Region>,
+    pub allocator: LockedAllocator,
+}
 
-struct Heap {
+#[cfg(not(test))]
+#[repr(C)]
+pub struct Heap {
     memory: Arc<Region>,
     allocator: LockedAllocator,
 }
 
 impl Heap {
-    fn global() -> Arc<Heap> {
+    pub fn global() -> Arc<Heap> {
         static mut HEAP: Option<Arc<Heap>> = None;
 
         unsafe {
@@ -174,14 +184,14 @@ impl Heap {
             }).clone()
         }
     }
-    fn new(memory: &Arc<Region>) -> Arc<Heap> {
+    pub fn new(memory: &Arc<Region>) -> Arc<Heap> {
         Arc::new(Heap {
             memory: Arc::clone(memory),
             allocator: LockedAllocator::new(memory.info.base, memory.info.size),
         })
     }
 
-    fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Arc<Region> {
+    pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Arc<Region> {
         if let Some(info) = self.allocator.alloc(size, align) {
             Region::block(info.base, info.size, &Arc::clone(self))
         } else {

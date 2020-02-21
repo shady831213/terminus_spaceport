@@ -1,5 +1,4 @@
 use super::*;
-// use crate::allocator::list::*;
 
 #[test]
 fn region_drop() {
@@ -33,11 +32,14 @@ fn region_access() {
 
     let heap = &Heap::global();
     {
-        let region = heap.alloc(9, 1);
+        let region = heap.alloc(9, 8);
         let remap = Region::mmap(0x80000000, &region);
         let remap2 = Region::mmap(0x10000000, &region);
         U64Access::write(region.deref(), region.info.base, 0x5a5aa5a5aaaa5555);
         assert_eq!(U32Access::read(remap.deref(), remap.info.base), 0xaaaa5555);
         assert_eq!(U32Access::read(remap2.deref(), remap2.info.base + 4), 0x5a5aa5a5);
+        U32Access::write(remap.deref(), remap.info.base, 0xbeefdead);
+        U32Access::write(remap2.deref(), remap2.info.base + 4, 0xdeadbeef);
+        assert_eq!(U64Access::read(region.deref(), region.info.base), 0xdeadbeefbeefdead);
     }
 }
