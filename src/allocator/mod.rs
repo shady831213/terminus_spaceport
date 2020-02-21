@@ -15,12 +15,21 @@ pub struct AllocationInfo {
 }
 
 #[cfg(not(test))]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct AllocationInfo {
     pub base: u64,
     pub size: u64,
 }
 
+#[cfg(test)]
+#[repr(C)]
+pub struct Allocator {
+    pub info: AllocationInfo,
+    pub free_blocks: Arc<List<AllocationInfo>>,
+    pub alloced_blocks: Arc<List<AllocationInfo>>,
+}
+
+#[cfg(not(test))]
 #[repr(C)]
 pub struct Allocator {
     pub info: AllocationInfo,
