@@ -6,8 +6,7 @@ int main() {
     void* heap = dm_heap(region);
     void* region2 = dm_alloc_region(heap, 2,1);
     void* region3 = dm_alloc_region(heap, 2,1);
-    void* region5 = dm_get_region(space, "region");
-    void* region4 = dm_map_region(region5, 10);
+    void* region4 = dm_map_region(dm_get_region(space, "region"), 10);
     dm_delete_region(space, "region");
     dm_free_region(region3);
     dm_free_region(region);
