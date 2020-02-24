@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::sync::{Mutex, Arc, MutexGuard};
+use std::sync::{Mutex, Arc};
 use crate::model::*;
 use std::ops::Deref;
-use std::borrow::{BorrowMut, Borrow};
 
 //Space should be an owner of Regions
 pub struct Space {

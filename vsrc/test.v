@@ -13,10 +13,10 @@ end
 
 always @(posedge clock) begin
     if (cnt[3]) begin
-        dm_free(allocator, {61'b0, cnt[2:0]} + 1);
+        dm_free_addr(allocator, {61'b0, cnt[2:0]} + 1);
     end
     else begin
-        $display("alloc addr = 0x%0x", dm_alloc(allocator, 1, 1));
+        $display("alloc addr = 0x%0x", dm_alloc_addr(allocator, 1, 1));
     end
 end
 
