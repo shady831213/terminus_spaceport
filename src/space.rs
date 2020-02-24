@@ -14,7 +14,7 @@ impl Space {
         Space { regions: Mutex::new(HashMap::new()) }
     }
 
-    pub fn add_region(&self, name: String, region: Arc<Region>) -> Arc<Region> {
+    pub fn add_region(&self, name: String, region: &Arc<Region>) -> Arc<Region> {
         let mut map = self.regions.lock().unwrap();
         let check = || {
             if let Some(_) = map.get(&name) {
@@ -28,9 +28,8 @@ impl Space {
             }
         };
         check();
-        let res = Arc::clone(&region);
-        map.insert(name, region);
-        res
+        map.insert(name, Arc::clone(region));
+        Arc::clone(region)
     }
 
     pub fn delete_region(&self, name: String) {
