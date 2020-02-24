@@ -1,6 +1,7 @@
 use crate::allocator::{Allocator, LockedAllocator};
 use std::any::Any;
-use std::ffi::c_void;
+use std::ffi::{c_void, CStr};
+use std::os::raw::c_char;
 use crate::space::Space;
 use std::sync::Arc;
 use crate::model::*;
@@ -58,23 +59,27 @@ extern "C" fn dm_new_space() -> *const Space {
 }
 
 #[no_mangle]
-extern "C" fn dm_add_region(space: &Box<Space>, name: &str, region: &Arc<Region>) -> *const Arc<Region> {
-    Box::into_raw(Box::new(space.add_region(String::from(name), region)))
+extern "C" fn dm_add_region(space: &mut Space, name: *const c_char, region: &Box<Arc<Region>>) {
+    space.add_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() }), region.deref())
 }
 
 #[no_mangle]
-extern "C" fn dm_get_region(space: &Box<Space>, name: &str) -> *const Arc<Region> {
-    Box::into_raw(Box::new(space.get_region(String::from(name))))
+extern "C" fn dm_get_region(space: &'static Space, name: *const c_char) -> *const c_void {
+    if let Some(region) = space.get_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() })) {
+        to_c_void(region)
+    } else {
+        panic!("no region {}!", unsafe { CStr::from_ptr(name).to_str().unwrap() })
+    }
 }
 
 #[no_mangle]
-extern "C" fn dm_delete_region(space: &Box<Space>, name: &str) {
-    space.delete_region(String::from(name))
+extern "C" fn dm_delete_region(space: &mut Space, name: *const c_char) {
+    space.delete_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
 }
 
 #[no_mangle]
-extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const Box<Arc<Region>> {
-    Box::into_raw(Box::new(Box::new(unsafe {
+extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const c_void {
+    to_c_void(unsafe {
         if heap.is_null() {
             // println!("alloc from global heap!");
             Heap::global().alloc(size, align)
@@ -84,25 +89,44 @@ extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64
             // println!("alloc {:?} from heap!", region.info);
             region
         }
-    })))
+    })
 }
 
 #[no_mangle]
-extern "C" fn dm_free_region(region: *const Box<Arc<Region>>) {
-    std::mem::drop(unsafe{region.read()})
+extern "C" fn dm_free_region(ptr: *const Box<dyn Any>) {
+    let region = unsafe { ptr.read() };
+    if let Some(_) = region.downcast_ref::<Arc<Region>>() {
+        std::mem::drop(region)
+    } else {
+        panic!("wrong type!only Arc<Region> can free!")
+    }
 }
 
 #[no_mangle]
-extern "C" fn dm_heap(region: &Box<Arc<Region>>) -> *const Box<Arc<Heap>> {
-    Box::into_raw(Box::new(Box::new(Heap::new(region.deref()))))
+extern "C" fn dm_heap(region: &Box<dyn Any>) -> *const Box<Arc<Heap>> {
+    Box::into_raw(Box::new(Box::new(Heap::new(get_region(region)))))
 }
 
 #[no_mangle]
 extern "C" fn dm_free_heap(heap: *const Box<Arc<Heap>>) {
-    std::mem::drop(unsafe{heap.read()})
+    std::mem::drop(unsafe { heap.read() })
 }
 
 #[no_mangle]
-extern "C" fn dm_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Box<Arc<Region>> {
-    Box::into_raw(Box::new(Box::new(Region::mmap(base, region.deref()))))
+extern "C" fn dm_map_region(region: &Box<dyn Any>, base: u64) -> *const c_void {
+    to_c_void(Region::mmap(base, get_region(region)))
+}
+
+fn to_c_void<T:'static>(obj: T) -> *const c_void {
+    Box::into_raw(Box::new(Box::new(obj) as Box<dyn Any>)) as *const c_void
+}
+
+fn get_region(ptr: &Box<dyn Any>) -> &Arc<Region> {
+    if let Some(region) = ptr.downcast_ref::<&Arc<Region>>() {
+        region.deref()
+    } else if let Some(region) = ptr.downcast_ref::<Arc<Region>>() {
+        region
+    } else {
+        panic!("wrong type!region should be &Arc<Region> or Arc<Region>!")
+    }
 }

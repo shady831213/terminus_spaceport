@@ -193,7 +193,7 @@ impl Heap {
 
     pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Arc<Region> {
         if let Some(info) = self.allocator.alloc(size, align) {
-            Region::block(info.base, info.size, &Arc::clone(self))
+            Region::block(info.base, info.size, self)
         } else {
             panic!("oom!")
         }

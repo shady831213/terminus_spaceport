@@ -4,13 +4,14 @@ use crate::space::*;
 
 #[test]
 fn space_drop() {
-    let space = Space::new();
+    let mut space = Space::new();
     let heap = Heap::global();
-    let region = Box::new(space.add_region(String::from("region"), &heap.alloc(9, 1)));
+    let region = heap.alloc(9, 1);
+    space.add_region(String::from("region"), &region);
     let &info = &region.info;
-    let heap1 = Box::new(Heap::new(&space.get_region(String::from("region"))));
-    let remap = Box::new(Region::mmap(0x80000000, &space.get_region(String::from("region"))));
-    let remap2 = Region::mmap(0x10000000, &space.get_region(String::from("region")));
+    let heap1 = Box::new(Heap::new(space.get_region(String::from("region")).unwrap()));
+    let remap = Box::new(Region::mmap(0x80000000, space.get_region(String::from("region")).unwrap()));
+    let remap2 = Region::mmap(0x10000000, space.get_region(String::from("region")).unwrap());
     println!("{:?}", heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).collect::<Vec<MemInfo>>());
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).find(|i| { i == &info }), None);
     std::mem::drop(region);
@@ -39,11 +40,15 @@ fn space_drop() {
 
 #[test]
 fn space_query() {
-    let space = Space::new();
+    let mut space = Space::new();
     let heap = Heap::global();
-    let region = space.add_region(String::from("region"), &heap.alloc(9, 1));
-    let region2 = space.add_region(String::from("region2"), &Region::mmap(0x80000000, &heap.alloc(9, 1)));
-    let region3 = space.add_region(String::from("region3"), &Region::mmap(0x10000000, &region));
-    assert_eq!(space.get_region_by_addr(region2.info.base+8).info, region2.info);
-    assert_eq!(space.get_region_by_addr(region3.info.base+2).info, region3.info);
+    let region = heap.alloc(9, 1);
+    space.add_region(String::from("region"), &region);
+    let region2 = Region::mmap(0x80000000, &heap.alloc(9, 1));
+    space.add_region(String::from("region2"), &region2);
+    let region3 = Region::mmap(0x10000000, &region);
+    space.add_region(String::from("region3"), &region3);
+
+    assert_eq!(space.get_region_by_addr(region2.info.base+8).unwrap().info, region2.info);
+    assert_eq!(space.get_region_by_addr(region3.info.base+2).unwrap().info, region3.info);
 }

@@ -55,6 +55,7 @@ impl Allocator {
     }
 
     pub fn free(&mut self, addr: u64) {
+        // println!("free {}!", addr);
         let (alloced_block, alloced_blocks) = List::delete(&self.alloced_blocks, |item| { item.car().unwrap().base == addr });
         if let Some(item) = alloced_block {
             let (pre_block, free_blocks) = List::delete(&self.free_blocks, |i| {
