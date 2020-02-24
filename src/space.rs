@@ -4,6 +4,7 @@ use crate::model::*;
 use std::ops::Deref;
 use std::borrow::{BorrowMut, Borrow};
 
+//Space should be an owner of Regions
 pub struct Space {
     regions: Mutex<HashMap<String, Arc<Region>>>
 }
