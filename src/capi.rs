@@ -59,8 +59,8 @@ extern "C" fn dm_new_space() -> *const Space {
 }
 
 #[no_mangle]
-extern "C" fn dm_add_region(space: &mut Space, name: *const c_char, region: &Box<Arc<Region>>) {
-    space.add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region.deref())
+extern "C" fn dm_add_region(space: &mut Space, name: *const c_char, region: &Box<dyn Any>) {
+    space.add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, get_region(region))
 }
 
 #[no_mangle]
