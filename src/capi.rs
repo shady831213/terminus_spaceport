@@ -60,21 +60,17 @@ extern "C" fn dm_new_space() -> *const Space {
 
 #[no_mangle]
 extern "C" fn dm_add_region(space: &mut Space, name: *const c_char, region: &Box<Arc<Region>>) {
-    space.add_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() }), region.deref())
+    space.add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region.deref())
 }
 
 #[no_mangle]
 extern "C" fn dm_get_region(space: &'static Space, name: *const c_char) -> *const c_void {
-    if let Some(region) = space.get_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() })) {
-        to_c_void(region)
-    } else {
-        panic!("no region {}!", unsafe { CStr::from_ptr(name).to_str().unwrap() })
-    }
+    to_c_void(space.get_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
 }
 
 #[no_mangle]
 extern "C" fn dm_delete_region(space: &mut Space, name: *const c_char) {
-    space.delete_region(String::from(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
+    space.delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
 }
 
 #[no_mangle]

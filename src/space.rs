@@ -13,9 +13,9 @@ impl Space {
         Space { regions: HashMap::new() }
     }
 
-    pub fn add_region(&mut self, name: String, region: &Arc<Region>) {
+    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) {
         let check = || {
-            if let Some(_) = self.regions.get(&name) {
+            if let Some(_) = self.regions.get(name) {
                 panic!("region name {} has existed!", name);
             }
             if let Some(v) = self.regions.iter().find(|(_, v)| {
@@ -26,20 +26,29 @@ impl Space {
             }
         };
         check();
-        self.regions.insert(name, Arc::clone(region));
+        self.regions.insert(String::from(name), Arc::clone(region));
     }
 
-    pub fn delete_region(&mut self, name: String) {
-        if let Some(v) = self.regions.remove(&name) {
+    pub fn delete_region(&mut self, name: &str) {
+        if let Some(v) = self.regions.remove(name) {
             std::mem::drop(v)
         }
     }
 
-    pub fn get_region(&self, name: String) -> Option<&Arc<Region>> {
-        self.regions.get(&name)
+    pub fn get_region(&self, name: &str) -> &Arc<Region> {
+        if let Some(v) = self.regions.get(name) {
+            v
+        } else {
+            panic!("no region {}!", name)
+        }
+
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> Option<&Arc<Region>> {
-        self.regions.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size })
+    pub fn get_region_by_addr(&self, addr: u64) -> &Arc<Region> {
+        if let Some(v) = self.regions.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
+            v
+        } else {
+            panic!("addr {:x?} is invalid!", addr)
+        }
     }
 }
