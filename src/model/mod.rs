@@ -126,7 +126,7 @@ impl Region {
     }
 
     fn translate(&self, va: u64) -> u64 {
-        assert!(va >= self.info.base && va < self.info.base + self.info.size, format!("addr 0x{:x?} translate fail!range {:?}", va, self.info));
+        assert!(va >= self.info.base && va < self.info.base + self.info.size, format!("addr 0x{:x?} translate fail!range {:x?}", va, self.info));
         match &self.memory {
             Memory::Block(_) | Memory::Model(_) => va,
             Memory::MMap(memory) => va - self.info.base + memory.deref().info.base

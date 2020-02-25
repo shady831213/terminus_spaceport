@@ -6,6 +6,7 @@ use crate::space::Space;
 use std::sync::{Arc, RwLock};
 use crate::model::*;
 use std::ops::Deref;
+use crate::MemInfo;
 
 
 #[no_mangle]
@@ -99,6 +100,11 @@ extern "C" fn dm_free_region(region: *const Box<Arc<Region>>) {
 }
 
 #[no_mangle]
+extern "C" fn __dm_region_info(region: &Box<Arc<Region>>) -> *const MemInfo {
+    Box::into_raw(Box::new(region.info))
+}
+
+#[no_mangle]
 extern "C" fn dm_heap(region: &Box<Arc<Region>>) -> *const Box<Arc<Heap>> {
     Box::into_raw(Box::new(Box::new(Heap::new(region.deref()))))
 }
@@ -111,6 +117,47 @@ extern "C" fn dm_free_heap(heap: *const Box<Arc<Heap>>) {
 #[no_mangle]
 extern "C" fn dm_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Box<Arc<Region>> {
     to_c_ptr(Region::mmap(base, region.deref()))
+}
+
+
+#[no_mangle]
+extern "C" fn dm_region_write_u8(region: &Box<Arc<Region>>, addr: u64, data: u8) {
+    U8Access::write(region.deref().deref(), addr, data)
+}
+
+#[no_mangle]
+extern "C" fn dm_region_write_u16(region: &Box<Arc<Region>>, addr: u64, data: u16) {
+    U16Access::write(region.deref().deref(), addr, data)
+}
+
+#[no_mangle]
+extern "C" fn dm_region_write_u32(region: &Box<Arc<Region>>, addr: u64, data: u32) {
+    U32Access::write(region.deref().deref(), addr, data)
+}
+
+#[no_mangle]
+extern "C" fn dm_region_write_u64(region: &Box<Arc<Region>>, addr: u64, data: u64) {
+    U64Access::write(region.deref().deref(), addr, data)
+}
+
+#[no_mangle]
+extern "C" fn __dm_region_read_u8(region: &Box<Arc<Region>>, addr: u64) -> u8 {
+    U8Access::read(region.deref().deref(), addr)
+}
+
+#[no_mangle]
+extern "C" fn __dm_region_read_u16(region: &Box<Arc<Region>>, addr: u64) -> u16 {
+    U16Access::read(region.deref().deref(), addr)
+}
+
+#[no_mangle]
+extern "C" fn __dm_region_read_u32(region: &Box<Arc<Region>>, addr: u64) -> u32 {
+    U32Access::read(region.deref().deref(), addr)
+}
+
+#[no_mangle]
+extern "C" fn __dm_region_read_u64(region: &Box<Arc<Region>>, addr: u64) -> u64 {
+    U64Access::read(region.deref().deref(), addr)
 }
 
 fn to_c_ptr(obj: Arc<Region>) -> *const Box<Arc<Region>> {

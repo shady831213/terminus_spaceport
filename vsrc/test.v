@@ -2,6 +2,8 @@
 module TestModule(input bit clock);
 chandle allocator;
 reg [3:0]cnt;
+
+
 initial begin
     allocator = dm_new_allocator(1, 16);
     cnt = 0;
