@@ -3,7 +3,7 @@ use std::any::Any;
 use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
 use crate::space::Space;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use crate::model::*;
 use std::ops::Deref;
 
@@ -54,28 +54,33 @@ extern "C" fn dm_free_addr(a: *mut c_void, addr: u64) {
 
 
 #[no_mangle]
-extern "C" fn dm_new_space() -> *const Space {
-    Box::into_raw(Box::new(Space::new()))
+extern "C" fn dm_new_space() -> *const RwLock<Space> {
+    Box::into_raw(Box::new(RwLock::new(Space::new())))
 }
 
 #[no_mangle]
-extern "C" fn dm_add_region(space: &mut Space, name: *const c_char, region: &Box<dyn Any>) {
-    space.add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, get_region(region))
+extern "C" fn __dm_add_region(space: &RwLock<Space>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
+    to_c_ptr(space.write().unwrap().add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region.deref()))
 }
 
 #[no_mangle]
-extern "C" fn dm_get_region(space: &'static Space, name: *const c_char) -> *const c_void {
-    to_c_void(space.get_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
+extern "C" fn __dm_clean_region(space: &RwLock<Space>, name: *const c_char, region: *const Box<Arc<Region>>) {
+    space.write().unwrap().clean(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region)
 }
 
 #[no_mangle]
-extern "C" fn dm_delete_region(space: &mut Space, name: *const c_char) {
-    space.delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
+extern "C" fn __dm_get_region(space: &RwLock<Space>, name: *const c_char) -> *const Box<Arc<Region>> {
+    to_c_ptr(space.read().unwrap().get_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
 }
 
 #[no_mangle]
-extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const c_void {
-    to_c_void(unsafe {
+extern "C" fn dm_delete_region(space: &RwLock<Space>, name: *const c_char) {
+    space.write().unwrap().delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
+}
+
+#[no_mangle]
+extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const Box<Arc<Region>> {
+    to_c_ptr(unsafe {
         if heap.is_null() {
             // println!("alloc from global heap!");
             Heap::global().alloc(size, align)
@@ -89,18 +94,13 @@ extern "C" fn dm_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64
 }
 
 #[no_mangle]
-extern "C" fn dm_free_region(ptr: *const Box<dyn Any>) {
-    let region = unsafe { ptr.read() };
-    if let Some(_) = region.downcast_ref::<Arc<Region>>() {
-        std::mem::drop(region)
-    } else {
-        panic!("wrong type!only Arc<Region> can free!")
-    }
+extern "C" fn dm_free_region(region: *const Box<Arc<Region>>) {
+    std::mem::drop(unsafe { region.read() })
 }
 
 #[no_mangle]
-extern "C" fn dm_heap(region: &Box<dyn Any>) -> *const Box<Arc<Heap>> {
-    Box::into_raw(Box::new(Box::new(Heap::new(get_region(region)))))
+extern "C" fn dm_heap(region: &Box<Arc<Region>>) -> *const Box<Arc<Heap>> {
+    Box::into_raw(Box::new(Box::new(Heap::new(region.deref()))))
 }
 
 #[no_mangle]
@@ -109,20 +109,10 @@ extern "C" fn dm_free_heap(heap: *const Box<Arc<Heap>>) {
 }
 
 #[no_mangle]
-extern "C" fn dm_map_region(region: &Box<dyn Any>, base: u64) -> *const c_void {
-    to_c_void(Region::mmap(base, get_region(region)))
+extern "C" fn dm_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Box<Arc<Region>> {
+    to_c_ptr(Region::mmap(base, region.deref()))
 }
 
-fn to_c_void<T:'static>(obj: T) -> *const c_void {
-    Box::into_raw(Box::new(Box::new(obj) as Box<dyn Any>)) as *const c_void
-}
-
-fn get_region(ptr: &Box<dyn Any>) -> &Arc<Region> {
-    if let Some(region) = ptr.downcast_ref::<&Arc<Region>>() {
-        region.deref()
-    } else if let Some(region) = ptr.downcast_ref::<Arc<Region>>() {
-        region
-    } else {
-        panic!("wrong type!region should be &Arc<Region> or Arc<Region>!")
-    }
+fn to_c_ptr(obj: Arc<Region>) -> *const Box<Arc<Region>> {
+    Box::into_raw(Box::new(Box::new(obj)))
 }

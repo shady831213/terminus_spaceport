@@ -5,15 +5,17 @@ use std::ops::Deref;
 
 //Space should be an owner of Regions
 pub struct Space {
-    regions: HashMap<String, Arc<Region>>
+    regions: HashMap<String, Arc<Region>>,
+    //for ffi free
+    ptrs: HashMap<String, Vec<*const Box<Arc<Region>>>>,
 }
 
 impl Space {
     pub fn new() -> Space {
-        Space { regions: HashMap::new() }
+        Space { regions: HashMap::new(), ptrs: HashMap::new() }
     }
 
-    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) {
+    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Arc<Region> {
         let check = || {
             if let Some(_) = self.regions.get(name) {
                 panic!("region name {} has existed!", name);
@@ -27,28 +29,36 @@ impl Space {
         };
         check();
         self.regions.insert(String::from(name), Arc::clone(region));
+        Arc::clone(region)
     }
 
     pub fn delete_region(&mut self, name: &str) {
         if let Some(v) = self.regions.remove(name) {
             std::mem::drop(v)
         }
+        if let Some(ptrs) = self.ptrs.remove(name) {
+            ptrs.iter().for_each(|ptr| { std::mem::drop(unsafe { (*ptr).read() }) })
+        }
     }
 
-    pub fn get_region(&self, name: &str) -> &Arc<Region> {
+    pub fn get_region(&self, name: &str) -> Arc<Region> {
         if let Some(v) = self.regions.get(name) {
-            v
+            Arc::clone(v)
         } else {
             panic!("no region {}!", name)
         }
-
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> &Arc<Region> {
+    pub fn get_region_by_addr(&self, addr: u64) -> Arc<Region> {
         if let Some(v) = self.regions.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
-            v
+            Arc::clone(v)
         } else {
             panic!("addr {:x?} is invalid!", addr)
         }
+    }
+
+    pub fn clean(&mut self, name: &str, ptr: *const Box<Arc<Region>>) {
+        let e = self.ptrs.entry(String::from(name)).or_insert(vec![]);
+        e.push(ptr)
     }
 }
