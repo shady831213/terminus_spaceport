@@ -13,10 +13,10 @@ extern uint64_t __dm_alloc_addr(const void* allocator, const uint64_t size, cons
 extern void __dm_free_addr(const void* allocator, const uint64_t addr);
 
 extern void* __dm_new_space();
-extern void* __dm_add_region(const void* space, char* name, void* region);
-extern void __dm_clean_region(const void* space, char* name, void* ptr);
-extern void* __dm_get_region(const void* space, char* name);
-extern void __dm_delete_region(const void* space, char* name);
+extern void* __dm_add_region(const void* space, const char* name, void* region);
+extern void __dm_clean_region(const void* space, const char* name, void* ptr);
+extern void* __dm_get_region(const void* space, const char* name);
+extern void __dm_delete_region(const void* space, const char* name);
 
 extern void* __dm_alloc_region(void* heap, uint64_t size, uint64_t align);
 extern void* __dm_map_region(const void* region, uint64_t base);

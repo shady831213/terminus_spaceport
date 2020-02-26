@@ -22,17 +22,17 @@ void* dmv_new_space() {
     return __dm_new_space();
 }
 
-void dmv_delete_region(const void* space, char* name) {
+void dmv_delete_region(const void* space, const char* name) {
     __dm_delete_region(space, name);
 }
 
-void* dmv_get_region(const void* space, char* name) {
+void* dmv_get_region(const void* space, const char* name) {
     void* ptr = __dm_get_region(space, name);
     __dm_clean_region(space, name, ptr);
     return ptr;
 }
 
-void* dmv_add_region(const void* space, char* name, void* region) {
+void* dmv_add_region(const void* space, const char* name, void* region) {
     void* ptr = __dm_add_region(space,name, region);
     __dm_clean_region(space,name,ptr);
     __dm_clean_region(space,name,region);

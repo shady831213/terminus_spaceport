@@ -8,9 +8,9 @@ uint64_t dmc_alloc_addr(const void* allocator, const uint64_t size, const uint64
 void dmc_free_addr(const void* allocator, const uint64_t addr);
 
 void* dmc_new_space();
-void dmc_delete_region(const void* space, char* name);
-void* dmc_get_region(const void* space, char* name);
-void* dmc_add_region(const void* space, char* name, void* region);
+void dmc_delete_region(const void* space, const char* name);
+void* dmc_get_region(const void* space, const char* name);
+void* dmc_add_region(const void* space, const char* name, void* region);
 
 void* dmc_alloc_region(void* heap, uint64_t size, uint64_t align);
 void* dmc_map_region(const void* region, uint64_t base);

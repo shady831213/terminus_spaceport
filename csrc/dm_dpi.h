@@ -8,9 +8,9 @@ uint64_t dmv_alloc_addr(const void* allocator, const uint64_t size, const uint64
 void dmv_free_addr(const void* allocator, const uint64_t addr);
 
 void* dmv_new_space();
-void dmv_delete_region(const void* space, char* name);
-void* dmv_get_region(const void* space, char* name);
-void* dmv_add_region(const void* space, char* name, void* region);
+void dmv_delete_region(const void* space, const char* name);
+void* dmv_get_region(const void* space, const char* name);
+void* dmv_add_region(const void* space, const char* name, void* region);
 
 void* dmv_alloc_region(void* heap, uint64_t size, uint64_t align);
 void* dmv_map_region(const void* region, uint64_t base);
