@@ -1,6 +1,6 @@
 RUST_TARGET=../target/debug/libdpi_memory.a
 RUST_DEP=../target/debug/libdpi_memory.d
-TARGET=libdpi_memory.c.so
+TARGET=libdpi_memory.1.so
 SRC=$(wildcard *.c)
 HEADER=$(wildcard *.h)
 OBJ=$(patsubst %.c,%.o,$(SRC))
@@ -13,7 +13,7 @@ all:$(TARGET)
 $(TARGET):$(OBJ) $(RUST_TARGET)
 	gcc -shared  $+ $(LFLAG) -o $@
 
-$(OBJ):$(SRC) $(HEADER)
+%.o:%.c $(HEADER)
 	gcc -c $(CFLAG) $< -o $@
 
 $(RUST_TARGET):$(RUST_DEP)
