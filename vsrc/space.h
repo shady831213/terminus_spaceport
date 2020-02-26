@@ -1,1 +1,0 @@
-void* dmc_get_space(const char* name);

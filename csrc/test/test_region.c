@@ -1,6 +1,6 @@
 #include <dm_c.h>
 int main() {
-    void* space = dmc_new_space();
+    void* space = dmc_space("root");
     void* region = dmc_add_region(space, "region", dmc_alloc_region(NULL, 8, 1));
     void* heap = dmc_heap(region);
     void* region2 = dmc_alloc_region(heap, 2,1);

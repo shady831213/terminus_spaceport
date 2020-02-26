@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, Mutex};
 use crate::model::*;
 use std::ops::Deref;
 
@@ -60,5 +60,27 @@ impl Space {
     pub fn clean(&mut self, name: &str, ptr: *const Box<Arc<Region>>) {
         let e = self.ptrs.entry(String::from(name)).or_insert(vec![]);
         e.push(ptr)
+    }
+}
+
+pub struct SpaceTable{
+    spaces: Mutex<HashMap<String, Arc<RwLock<Space>>>>,
+}
+
+impl SpaceTable {
+    pub fn global()->Arc<SpaceTable> {
+        static mut Table: Option<Arc<SpaceTable>> = None;
+
+        unsafe {
+            Table.get_or_insert_with(|| {
+                Arc::new(SpaceTable{spaces:Mutex::new(HashMap::new())})
+            }).clone()
+        }
+    }
+
+    pub fn get_space(&self, name: &str) -> Arc<RwLock<Space>> {
+        Arc::clone(self.spaces.lock().unwrap()
+            .entry(String::from(name))
+            .or_insert(Arc::new(RwLock::new(Space::new()))))
     }
 }

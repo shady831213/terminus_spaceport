@@ -2,7 +2,7 @@ use crate::allocator::{Allocator, LockedAllocator};
 use std::any::Any;
 use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
-use crate::space::Space;
+use crate::space::{Space, SpaceTable};
 use std::sync::{Arc, RwLock};
 use crate::model::*;
 use std::ops::Deref;
@@ -55,27 +55,27 @@ extern "C" fn __dm_free_addr(a: *mut c_void, addr: u64) {
 
 
 #[no_mangle]
-extern "C" fn __dm_new_space() -> *const RwLock<Space> {
-    Box::into_raw(Box::new(RwLock::new(Space::new())))
+extern "C" fn __dm_space(name: *const c_char) -> *const Arc<RwLock<Space>> {
+    Box::into_raw(Box::new(SpaceTable::global().get_space(unsafe { CStr::from_ptr(name).to_str().unwrap() })))
 }
 
 #[no_mangle]
-extern "C" fn __dm_add_region(space: &RwLock<Space>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
+extern "C" fn __dm_add_region(space: &Arc<RwLock<Space>>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
     to_c_ptr(space.write().unwrap().add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region.deref()))
 }
 
 #[no_mangle]
-extern "C" fn __dm_clean_region(space: &RwLock<Space>, name: *const c_char, region: *const Box<Arc<Region>>) {
+extern "C" fn __dm_clean_region(space: &Arc<RwLock<Space>>, name: *const c_char, region: *const Box<Arc<Region>>) {
     space.write().unwrap().clean(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region)
 }
 
 #[no_mangle]
-extern "C" fn __dm_get_region(space: &RwLock<Space>, name: *const c_char) -> *const Box<Arc<Region>> {
+extern "C" fn __dm_get_region(space: &Arc<RwLock<Space>>, name: *const c_char) -> *const Box<Arc<Region>> {
     to_c_ptr(space.read().unwrap().get_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
 }
 
 #[no_mangle]
-extern "C" fn __dm_delete_region(space: &RwLock<Space>, name: *const c_char) {
+extern "C" fn __dm_delete_region(space: &Arc<RwLock<Space>>, name: *const c_char) {
     space.write().unwrap().delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
 }
 

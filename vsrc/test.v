@@ -5,8 +5,8 @@ reg [3:0]cnt;
 initial begin
     chandle main_memory, rom;
     bit[31:0] data;
-    main_memory = dmv_get_region(dmv_get_space(""), "main_memory");
-    rom = dmv_get_region(dmv_get_space(""), "rom");
+    main_memory = dmv_get_region(dmv_space("root"), "main_memory");
+    rom = dmv_get_region(dmv_space("root"), "rom");
     $display("read rom @0x%0x", dmv_region_base(rom));
     dmv_region_read_u16(rom, dmv_region_base(rom), data[15:0]);
     dmv_region_read_u16(rom, dmv_region_base(rom)+2, data[31:16]);

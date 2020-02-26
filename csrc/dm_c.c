@@ -18,8 +18,8 @@ void dmc_free_addr(const void* allocator, const uint64_t addr) {
     __dm_free_addr(allocator, addr);
 }
 
-void* dmc_new_space() {
-    return __dm_new_space();
+void* dmc_space(const char* name) {
+    return __dm_space(name);
 }
 
 void dmc_delete_region(const void* space, const char* name) {

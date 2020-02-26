@@ -22,7 +22,7 @@ import "DPI-C" function void dmv_free_addr
 );
 
 
-import "DPI-C" function chandle dmv_get_space(input string name);
+import "DPI-C" function chandle dmv_space(input string name);
 import "DPI-C" function chandle dmv_get_region(input chandle space , input string name);
 import "DPI-C" function chandle dmv_alloc_region(input chandle heap, input longint unsigned size, input longint unsigned align);
 import "DPI-C" function chandle dmv_map_region(input chandle region, input longint unsigned base);

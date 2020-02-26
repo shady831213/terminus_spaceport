@@ -10,7 +10,6 @@
 #include <VTestModule.h>
 extern "C" {
     #include <dm_c.h>
-    #include <space.h>
 }
 static uint64_t trace_count = 0;
 
@@ -33,8 +32,8 @@ int main(int argc, char** argv)
   void* main_memory = dmc_alloc_region(NULL,16ul, 8ul);
   void* rom = dmc_alloc_region(NULL, 8ul, 8ul);
 
-  dmc_add_region(dmc_get_space(""), "main_memory", dmc_map_region(main_memory, 0x800000000ul));
-  dmc_add_region(dmc_get_space(""), "rom",  dmc_map_region(rom, 0x100000000ul));
+  dmc_add_region(dmc_space("root"), "main_memory", dmc_map_region(main_memory, 0x800000000ul));
+  dmc_add_region(dmc_space("root"), "rom",  dmc_map_region(rom, 0x100000000ul));
 
   std::cout << std::hex << "write rom @" << dmc_region_info(rom)->base << std::endl;
   dmc_region_write_u32(rom, dmc_region_info(rom)->base, 0x5a5aa5a5);
@@ -59,8 +58,8 @@ int main(int argc, char** argv)
 
   dmc_free_region(main_memory);
   dmc_free_region(rom);
-  dmc_delete_region(dmc_get_space(""), "main_memory");
-  dmc_delete_region(dmc_get_space(""), "rom");
+  dmc_delete_region(dmc_space("root"), "main_memory");
+  dmc_delete_region(dmc_space("root"), "rom");
 
   return ret;
 }
