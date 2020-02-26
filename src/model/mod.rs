@@ -2,6 +2,7 @@
 mod test;
 
 extern crate rand;
+
 use std::collections::HashMap;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
@@ -10,6 +11,7 @@ use std::mem::size_of;
 use std::convert::TryInto;
 use std::ops::Deref;
 use super::*;
+use std::cell::RefCell;
 
 pub trait U8Access {
     fn write(&self, addr: u64, data: u8);
@@ -17,11 +19,11 @@ pub trait U8Access {
 }
 
 pub trait BytesAccess: U8Access {
-    fn write(&self, base: u64, bytes: &[u8]) where {
-        bytes.iter().enumerate().for_each(|(offset, data)| { U8Access::write(self, base + offset as u64, *data) });
+    fn write(&self, addr: u64, data: &[u8]) {
+        data.iter().enumerate().for_each(|(offset, d)| { U8Access::write(self, addr + offset as u64, *d) });
     }
-    fn read(&self, base: u64, bytes: &mut [u8]) where {
-        bytes.iter_mut().enumerate().for_each(|(offset, data)| { *data = U8Access::read(self, base + offset as u64) });
+    fn read(&self, addr: u64, data: &mut [u8]) {
+        data.iter_mut().enumerate().for_each(|(offset, d)| { *d = U8Access::read(self, addr + offset as u64) });
     }
 }
 
@@ -65,34 +67,101 @@ pub trait U64Access: BytesAccess {
     }
 }
 
+struct Model {
+    inner: RefCell<HashMap<u64, u8>>
+}
+
+impl Model {
+    fn new() -> Model {
+        Model { inner: RefCell::new(HashMap::new()) }
+    }
+}
+
+impl U8Access for Model {
+    fn write(&self, addr: u64, data: u8) {
+        self.inner.borrow_mut().insert(addr, data);
+    }
+
+    fn read(&self, addr: u64) -> u8 {
+        *self.inner.borrow_mut().entry(addr).
+            or_insert_with(|| {
+                let mut rng = rand::thread_rng();
+                rng.gen()
+            })
+    }
+}
+
+impl BytesAccess for Model {}
+
+impl U16Access for Model {}
+
+impl U32Access for Model {}
+
+impl U64Access for Model {}
+
 enum Memory {
-    Model(Arc<Mutex<HashMap<u64, u8>>>),
+    Model(Arc<Mutex<Model>>),
     Block(Arc<Heap>),
     MMap(Arc<Region>),
 }
 
+macro_rules! memory_access {
+    ($x:ident, $f:ident, $obj:expr, $($p:expr),+) => {match $obj {
+            Memory::Model(model) => $x::$f(model.lock().unwrap().deref(),$($p,)+),
+            Memory::Block(heap) =>  $x::$f(heap.memory.deref(),$($p,)+),
+            Memory::MMap(memory) => $x::$f(memory.deref(),$($p,)+),
+        }
+        }
+}
+
+
 impl U8Access for Memory {
     fn write(&self, addr: u64, data: u8) {
-        match self {
-            Memory::Model(model) => { model.lock().unwrap().insert(addr, data); }
-            Memory::Block(heap) => U8Access::write(heap.memory.deref(), addr, data),
-            Memory::MMap(memory) => U8Access::write(memory.deref(), addr, data),
-        }
+        memory_access!(U8Access, write, self, addr, data)
     }
 
     fn read(&self, addr: u64) -> u8 {
-        match self {
-            Memory::Model(model) => {
-                *model.lock().unwrap().
-                    entry(addr).
-                    or_insert_with(|| {
-                        let mut rng = rand::thread_rng();
-                        rng.gen()
-                    })
-            }
-            Memory::Block(heap) => U8Access::read(heap.memory.deref(), addr),
-            Memory::MMap(memory) => U8Access::read(memory.deref(), addr),
-        }
+        memory_access!(U8Access, read, self, addr)
+    }
+}
+
+impl U16Access for Memory {
+    fn write(&self, addr: u64, data: u16) {
+        memory_access!(U16Access, write, self, addr, data)
+    }
+
+    fn read(&self, addr: u64) -> u16 {
+        memory_access!(U16Access, read, self, addr)
+    }
+}
+
+impl U32Access for Memory {
+    fn write(&self, addr: u64, data: u32) {
+        memory_access!(U32Access, write, self, addr, data)
+    }
+
+    fn read(&self, addr: u64) -> u32 {
+        memory_access!(U32Access, read, self, addr)
+    }
+}
+
+impl U64Access for Memory {
+    fn write(&self, addr: u64, data: u64) {
+        memory_access!(U64Access, write,  self, addr, data)
+    }
+
+    fn read(&self, addr: u64) -> u64 {
+        memory_access!(U64Access, read, self, addr)
+    }
+}
+
+impl BytesAccess for Memory {
+    fn write(&self, addr: u64, data: &[u8]) {
+        memory_access!(BytesAccess, write, self, addr, data)
+    }
+
+    fn read(&self, addr: u64, data: &mut [u8]) {
+        memory_access!(BytesAccess, read, self, addr, data)
     }
 }
 
@@ -105,7 +174,7 @@ pub struct Region {
 impl Region {
     fn model(base: u64, size: u64) -> Arc<Region> {
         Arc::new(Region {
-            memory: Memory::Model(Arc::new(Mutex::new(HashMap::new()))),
+            memory: Memory::Model(Arc::new(Mutex::new(Model::new()))),
             info: MemInfo { base: base, size: size },
         })
     }
@@ -125,8 +194,14 @@ impl Region {
         })
     }
 
-    fn translate(&self, va: u64) -> u64 {
-        assert!(va >= self.info.base && va < self.info.base + self.info.size, format!("addr 0x{:x?} translate fail!range {:x?}", va, self.info));
+    fn check_range(&self, addr: u64) {
+        assert!(addr >= self.info.base && addr < self.info.base + self.info.size, format!("addr 0x{:x?} translate fail!range {:x?}", addr, self.info));
+    }
+
+    fn translate(&self, va: u64, size: usize) -> u64 {
+        for addr in va..va + size as u64 {
+            self.check_range(addr)
+        }
         match &self.memory {
             Memory::Block(_) | Memory::Model(_) => va,
             Memory::MMap(memory) => va - self.info.base + memory.deref().info.base
@@ -134,23 +209,56 @@ impl Region {
     }
 }
 
-impl BytesAccess for Region {}
 
 impl U8Access for Region {
     fn write(&self, addr: u64, data: u8) {
-        self.memory.write(self.translate(addr), data)
+        U8Access::write(&self.memory, self.translate(addr, 1), data)
     }
 
     fn read(&self, addr: u64) -> u8 {
-        self.memory.read(self.translate(addr))
+        U8Access::read(&self.memory, self.translate(addr, 1))
     }
 }
 
-impl U16Access for Region {}
+impl BytesAccess for Region {
+    fn write(&self, addr: u64, data: &[u8]) {
+        BytesAccess::write(&self.memory, self.translate(addr, data.len()), data)
+    }
 
-impl U32Access for Region {}
+    fn read(&self, addr: u64, data: &mut [u8]) {
+        BytesAccess::read(&self.memory, self.translate(addr, data.len()), data)
+    }
+}
 
-impl U64Access for Region {}
+impl U16Access for Region {
+    fn write(&self, addr: u64, data: u16) {
+        U16Access::write(&self.memory, self.translate(addr, 2), data)
+    }
+
+    fn read(&self, addr: u64) -> u16 {
+        U16Access::read(&self.memory, self.translate(addr,2))
+    }
+}
+
+impl U32Access for Region {
+    fn write(&self, addr: u64, data: u32) {
+        U32Access::write(&self.memory, self.translate(addr, 4), data)
+    }
+
+    fn read(&self, addr: u64) -> u32 {
+        U32Access::read(&self.memory, self.translate(addr, 4))
+    }
+}
+
+impl U64Access for Region {
+    fn write(&self, addr: u64, data: u64) {
+        U64Access::write(&self.memory, self.translate(addr, 8), data)
+    }
+
+    fn read(&self, addr: u64) -> u64 {
+        U64Access::read(&self.memory, self.translate(addr, 8))
+    }
+}
 
 impl Drop for Region {
     fn drop(&mut self) {
