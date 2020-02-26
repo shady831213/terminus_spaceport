@@ -27,6 +27,7 @@ void dmv_region_read_u16(const void* heap, const uint64_t addr, uint16_t* data);
 void dmv_region_read_u32(const void* heap, const uint64_t addr, uint32_t* data);
 void dmv_region_read_u64(const void* heap, const uint64_t addr, uint64_t* data);
 
-void dmv_region_info(const void* region, dm_mem_info* info);
+uint64_t dmv_region_base(const void* region);
+uint64_t dmv_region_size(const void* region);
 
 #endif

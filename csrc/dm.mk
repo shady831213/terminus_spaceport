@@ -13,7 +13,7 @@ all:$(TARGET)
 $(TARGET):$(OBJ) $(RUST_TARGET)
 	gcc -shared  $+ $(LFLAG) -o $@
 
-%.o:%.c $(HEADER)
+$(OBJ):%.o:%.c $(SRC) $(HEADER)
 	gcc -c $(CFLAG) $< -o $@
 
 $(RUST_TARGET):$(RUST_DEP)

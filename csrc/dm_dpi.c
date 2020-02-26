@@ -76,25 +76,23 @@ void dmv_region_write_u64(const void* region, const uint64_t addr, const uint64_
 }
 
 void dmv_region_read_u8(const void* region, const uint64_t addr, uint8_t* data){
-    uint8_t _data = __dm_region_read_u8(region, addr);
-    *data = data;
+    *data = __dm_region_read_u8(region, addr);
 }
 void dmv_region_read_u16(const void* region, const uint64_t addr, uint16_t* data){
-    uint16_t _data = __dm_region_read_u16(region, addr);
-    *data = data;
+    *data = __dm_region_read_u16(region, addr);
 }
 void dmv_region_read_u32(const void* region, const uint64_t addr, uint32_t* data){
-    uint32_t _data = __dm_region_read_u32(region, addr);
-    *data = data;
+    *data = __dm_region_read_u32(region, addr);
 }
 void dmv_region_read_u64(const void* region, const uint64_t addr, uint64_t* data){
-    uint64_t _data = __dm_region_read_u64(region, addr);
-    *data = data;
+    *data =__dm_region_read_u64(region, addr);
 }
 
-void dmv_region_info(const void* region, dm_mem_info* info){
-    dm_mem_info* ptr = (dm_mem_info*)__dm_region_info(region);
-    info->base = ptr->base;
-    info->size = ptr->size;
+uint64_t dmv_region_base(const void* region){
+    return ((dm_mem_info*)__dm_region_info(region))->base;
 }
+uint64_t dmv_region_size(const void* region){
+    return ((dm_mem_info*)__dm_region_info(region))->size;
+}
+
 #endif
