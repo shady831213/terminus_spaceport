@@ -1,6 +1,6 @@
-RUST_TARGET=../target/debug/libdpi_memory.a
-RUST_DEP=../target/debug/libdpi_memory.d
-TARGET=libdpi_memory.1.so
+RUST_TARGET=../target/release/libdpi_memory.a
+RUST_DEP=../target/release/libdpi_memory.d
+TARGET=../target/release/libdpi_memory.1.so
 SRC=$(wildcard *.c)
 HEADER=$(wildcard *.h)
 OBJ=$(patsubst %.c,%.o,$(SRC))
@@ -17,7 +17,7 @@ $(OBJ):%.o:%.c $(SRC) $(HEADER)
 	gcc -c $(CFLAG) $< -o $@
 
 $(RUST_TARGET):$(RUST_DEP)
-	cargo build
+	cargo build --release
 
 .PHONY:clean
 clean:
