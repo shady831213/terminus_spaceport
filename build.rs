@@ -6,6 +6,7 @@ use std::env;
 use std::path::PathBuf;
 
 fn main() {
+    println!("cargo:rerun-if-changed=csrc");
     let files = fs::read_dir("csrc").unwrap()
         .filter(|p| { p.as_ref().unwrap().path().is_file() })
         .map(|f| String::from({ f.unwrap().path().to_str().unwrap() }))
