@@ -1,1 +1,0 @@
-make -C csrc -f dm.mk
