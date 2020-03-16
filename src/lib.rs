@@ -1,6 +1,7 @@
 mod allocator;
 mod model;
 mod space;
+pub use space::*;
 mod capi;
 
 #[cfg(test)]
