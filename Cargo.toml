@@ -1,5 +1,5 @@
 [package]
-name = "dpi_memory"
+name = "dpi-memory"
 version = "0.1.0"
 authors = ["shady831213 <shady831213@126.com>"]
 edition = "2018"
@@ -15,7 +15,7 @@ regex = "1"
 
 [lib]
 name = "dpi_memory"
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "dylib"]
 
 [dependencies]
 rand = "0.7.3"

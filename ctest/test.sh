@@ -1,8 +1,8 @@
 cargo build --release
 echo "--------------------------"
 echo "Test test_raw_allocator..."
-gcc -g -o test test_raw_allocator.c -I ../csrc -L../target/release -Wl,-Bstatic -ldpi_memory  -Wl,-Bdynamic -lpthread -ldl -lm
-#gcc -g test_raw_allocator.c -ldm.c -ldpi_memory -L../target/release -Wl,-rpath=../target/release -I ../target/release -o test
+#gcc -g -o test test_raw_allocator.c -I ../csrc -L../target/release -Wl,-Bstatic -ldpi_memory  -Wl,-Bdynamic -lpthread -ldl -lm
+gcc -g test_raw_allocator.c -ldm.c -ldpi_memory -L../target/release -Wl,-rpath=../target/release -I ../target/release -o test
 ./test
 rm test
 echo "Test test_raw_allocator Done!"
