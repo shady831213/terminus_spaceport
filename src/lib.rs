@@ -1,5 +1,6 @@
 mod allocator;
 mod model;
+pub use model::*;
 mod space;
 pub use space::*;
 mod capi;
