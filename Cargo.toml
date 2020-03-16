@@ -15,7 +15,7 @@ regex = "1"
 
 [lib]
 name = "dpi_memory"
-crate-type = ["staticlib", "dylib"]
+crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
 rand = "0.7.3"
