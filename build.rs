@@ -2,9 +2,8 @@ extern crate regex;
 
 use regex::Regex;
 use std::fs;
-use std::ops::Deref;
 use std::env;
-use std::path::{PathBuf, Path};
+use std::path::Path;
 
 fn get_files(dir:&str)->Vec<String> {
     fs::read_dir(dir).unwrap()

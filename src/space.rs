@@ -69,10 +69,10 @@ pub struct SpaceTable{
 
 impl SpaceTable {
     pub fn global()->Arc<SpaceTable> {
-        static mut Table: Option<Arc<SpaceTable>> = None;
+        static mut SPACE_TABLE: Option<Arc<SpaceTable>> = None;
 
         unsafe {
-            Table.get_or_insert_with(|| {
+            SPACE_TABLE.get_or_insert_with(|| {
                 Arc::new(SpaceTable{spaces:Mutex::new(HashMap::new())})
             }).clone()
         }

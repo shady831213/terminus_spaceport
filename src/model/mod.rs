@@ -12,6 +12,7 @@ use std::convert::TryInto;
 use std::ops::Deref;
 use super::*;
 use std::cell::RefCell;
+use std::marker::{Sync, Send};
 
 pub trait U8Access {
     fn write(&self, addr: u64, data: u8);
@@ -67,6 +68,9 @@ pub trait U64Access: BytesAccess {
     }
 }
 
+pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access + Sync + Send {}
+
+
 struct Model {
     inner: RefCell<HashMap<u64, u8>>
 }
@@ -103,10 +107,12 @@ enum Memory {
     Model(Arc<Mutex<Model>>),
     Block(Arc<Heap>),
     MMap(Arc<Region>),
+    IO(Arc<Box<dyn IOAccess>>),
 }
 
 macro_rules! memory_access {
     ($x:ident, $f:ident, $obj:expr, $($p:expr),+) => {match $obj {
+            Memory::IO(io) => $x::$f(io.deref().deref(),$($p,)+),
             Memory::Model(model) => $x::$f(model.lock().unwrap().deref(),$($p,)+),
             Memory::Block(heap) =>  $x::$f(heap.memory.deref(),$($p,)+),
             Memory::MMap(memory) => $x::$f(memory.deref(),$($p,)+),
@@ -172,6 +178,13 @@ pub struct Region {
 }
 
 impl Region {
+    pub fn io(base: u64, size: u64, io: Box<dyn IOAccess>) -> Arc<Region> {
+        Arc::new(Region {
+            memory: Memory::IO(Arc::new(io)),
+            info: MemInfo { base: base, size: size },
+        })
+    }
+
     fn model(base: u64, size: u64) -> Arc<Region> {
         Arc::new(Region {
             memory: Memory::Model(Arc::new(Mutex::new(Model::new()))),
@@ -203,8 +216,8 @@ impl Region {
             self.check_range(addr)
         }
         match &self.memory {
-            Memory::Block(_) | Memory::Model(_) => va,
-            Memory::MMap(memory) => va - self.info.base + memory.deref().info.base
+            Memory::MMap(memory) => va - self.info.base + memory.deref().info.base,
+            _ => va,
         }
     }
 }
@@ -236,7 +249,7 @@ impl U16Access for Region {
     }
 
     fn read(&self, addr: u64) -> u16 {
-        U16Access::read(&self.memory, self.translate(addr,2))
+        U16Access::read(&self.memory, self.translate(addr, 2))
     }
 }
 
