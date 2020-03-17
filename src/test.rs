@@ -64,6 +64,7 @@ fn space_query() {
     send_thread.join().unwrap();
 }
 
+#[dm_io(U8)]
 struct TestIODevice {
     tx: Mutex<Sender<u8>>,
     rx: Mutex<Receiver<u8>>,
@@ -90,17 +91,6 @@ impl U8Access for TestIODevice {
         self.rx.lock().unwrap().recv().unwrap()
     }
 }
-
-impl BytesAccess for TestIODevice {}
-
-impl U16Access for TestIODevice {}
-
-impl U32Access for TestIODevice {}
-
-impl U64Access for TestIODevice {}
-
-impl IOAccess for TestIODevice {}
-
 
 #[test]
 fn simple_device() {

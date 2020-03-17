@@ -19,3 +19,4 @@ crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
 rand = "0.7.3"
+dpi-memory-proc-macros = { path = "proc_macros" }

@@ -1,8 +1,16 @@
+extern crate dpi_memory_proc_macros;
+
+pub use dpi_memory_proc_macros::*;
+
 mod allocator;
 mod model;
+
 pub use model::*;
+
 mod space;
+
 pub use space::*;
+
 mod capi;
 
 #[cfg(test)]
