@@ -62,6 +62,8 @@ fn space_query() {
         })
     };
     send_thread.join().unwrap();
+
+    println!("{}", space.to_string());
 }
 
 #[dm_io(U8)]

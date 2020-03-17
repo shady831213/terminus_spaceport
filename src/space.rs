@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock, Mutex};
 use crate::model::*;
 use std::ops::Deref;
+use std::fmt::{Display, Formatter};
+use std::fmt;
 
 #[derive(Debug)]
 pub enum Error {
@@ -67,6 +69,18 @@ impl Space {
     pub fn clean(&mut self, name: &str, ptr: *const Box<Arc<Region>>) {
         let e = self.ptrs.entry(String::from(name)).or_insert(vec![]);
         e.push(ptr)
+    }
+}
+
+impl Display for Space {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let mut paires = self.regions.iter().collect::<Vec<_>>();
+        paires.sort_by(|&l, &r| {l.1.info.base.cmp(&r.1.info.base)});
+        writeln!(f, "regions:");
+        for (name, region) in paires {
+            writeln!(f, "   {:#16}: {:#016x} -> {:#016x}", name, region.info.base, region.info.base + region.info.size - 1)?;
+        }
+        Ok(())
     }
 }
 
