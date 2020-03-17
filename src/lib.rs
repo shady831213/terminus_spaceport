@@ -7,9 +7,7 @@ mod model;
 
 pub use model::*;
 
-mod space;
-
-pub use space::*;
+pub mod space;
 
 mod capi;
 

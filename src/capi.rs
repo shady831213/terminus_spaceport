@@ -61,7 +61,11 @@ extern "C" fn __dm_space(name: *const c_char) -> *const Arc<RwLock<Space>> {
 
 #[no_mangle]
 extern "C" fn __dm_add_region(space: &Arc<RwLock<Space>>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
-    to_c_ptr(space.write().unwrap().add_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region.deref()))
+    let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
+    match space.write().unwrap().add_region(name, region.deref()) {
+        Ok(r) => to_c_ptr(r),
+        Err(e) => panic!(e)
+    }
 }
 
 #[no_mangle]

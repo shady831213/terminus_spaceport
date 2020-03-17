@@ -3,6 +3,12 @@ use std::sync::{Arc, RwLock, Mutex};
 use crate::model::*;
 use std::ops::Deref;
 
+#[derive(Debug)]
+pub enum Error{
+    Overlap(String),
+    Renamed(String),
+}
+
 //Space should be an owner of Regions
 pub struct Space {
     regions: HashMap<String, Arc<Region>>,
@@ -15,21 +21,22 @@ impl Space {
         Space { regions: HashMap::new(), ptrs: HashMap::new() }
     }
 
-    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Arc<Region> {
+    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
         let check = || {
             if let Some(_) = self.regions.get(name) {
-                panic!("region name {} has existed!", name);
+                return Err(Error::Renamed(format!("region name {} has existed!", name)))
             }
             if let Some(v) = self.regions.iter().find(|(_, v)| {
                 region.info.base >= v.info.base && region.info.base < v.info.base + v.info.size ||
                     region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size
             }) {
-                panic!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info);
+                return Err(Error::Overlap(format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info)))
             }
+            Ok(())
         };
-        check();
+        check()?;
         self.regions.insert(String::from(name), Arc::clone(region));
-        Arc::clone(region)
+        Ok(Arc::clone(region))
     }
 
     pub fn delete_region(&mut self, name: &str) {

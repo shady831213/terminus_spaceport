@@ -13,7 +13,7 @@ use std::time::Duration;
 fn space_drop() {
     let mut space = Space::new();
     let heap = Heap::global();
-    let region = space.add_region("region", &heap.alloc(9, 1));
+    let region = space.add_region("region", &heap.alloc(9, 1)).unwrap();
     let &info = &region.info;
     let heap1 = Box::new(Heap::new(&space.get_region("region").unwrap()));
     let remap = Box::new(Region::mmap(0x80000000, &space.get_region("region").unwrap()));
@@ -48,9 +48,9 @@ fn space_drop() {
 fn space_query() {
     let mut space = Space::new();
     let heap = Heap::global();
-    let region = space.add_region("region", &heap.alloc(9, 1));
-    let region2 = space.add_region("region2", &Region::mmap(0x80000000, &heap.alloc(9, 1)));
-    let region3 = space.add_region("region3", &Region::mmap(0x10000000, &region));
+    let region = space.add_region("region", &heap.alloc(9, 1)).unwrap();
+    let region2 = space.add_region("region2", &Region::mmap(0x80000000, &heap.alloc(9, 1))).unwrap();
+    let region3 = space.add_region("region3", &Region::mmap(0x10000000, &region)).unwrap();
     assert_eq!(space.get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
     assert_eq!(space.get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
 
@@ -99,7 +99,7 @@ fn simple_device() {
     let (send_tx, send_rx) = channel();
     let (stop_tx, stop_rx) = channel::<()>();
     let region = Region::io(0, 20, Box::new(TestIODevice::new(recv_tx, send_rx)));
-    space.write().unwrap().add_region("testIO", &region);
+    space.write().unwrap().add_region("testIO", &region).unwrap();
 
     thread::spawn(move || {
         for i in 0..10 {
