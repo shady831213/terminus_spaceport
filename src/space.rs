@@ -30,7 +30,9 @@ impl Space {
             }
             if let Some(v) = self.regions.iter().find(|(_, v)| {
                 region.info.base >= v.info.base && region.info.base < v.info.base + v.info.size ||
-                    region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size
+                    region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size ||
+                    v.info.base >= region.info.base && v.info.base < region.info.base + region.info.size ||
+                    v.info.base + v.info.size - 1 >= region.info.base && v.info.base + v.info.size - 1 < region.info.base + region.info.size
             }) {
                 return Err(Error::Overlap(v.0.to_string(), format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info)));
             }
