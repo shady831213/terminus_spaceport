@@ -71,7 +71,12 @@ extern "C" fn __dm_clean_region(space: &Arc<RwLock<Space>>, name: *const c_char,
 
 #[no_mangle]
 extern "C" fn __dm_get_region(space: &Arc<RwLock<Space>>, name: *const c_char) -> *const Box<Arc<Region>> {
-    to_c_ptr(space.read().unwrap().get_region(unsafe { CStr::from_ptr(name).to_str().unwrap() }))
+    let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
+    if let Some(r) = space.read().unwrap().get_region(name) {
+        to_c_ptr(r)
+    } else {
+        panic!(format!("no region {}", name))
+    }
 }
 
 #[no_mangle]

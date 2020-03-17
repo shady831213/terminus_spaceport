@@ -41,19 +41,19 @@ impl Space {
         }
     }
 
-    pub fn get_region(&self, name: &str) -> Arc<Region> {
+    pub fn get_region(&self, name: &str) -> Option<Arc<Region>> {
         if let Some(v) = self.regions.get(name) {
-            Arc::clone(v)
+            Some(Arc::clone(v))
         } else {
-            panic!("no region {}!", name)
+            None
         }
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> Arc<Region> {
+    pub fn get_region_by_addr(&self, addr: u64) -> Option<Arc<Region>> {
         if let Some(v) = self.regions.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
-            Arc::clone(v)
+            Some(Arc::clone(v))
         } else {
-            panic!("addr {:x?} is invalid!", addr)
+            None
         }
     }
 
