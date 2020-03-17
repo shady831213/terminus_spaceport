@@ -4,9 +4,9 @@ use crate::model::*;
 use std::ops::Deref;
 
 #[derive(Debug)]
-pub enum Error{
-    Overlap(String),
-    Renamed(String),
+pub enum Error {
+    Overlap(String, String),
+    Renamed(String, String),
 }
 
 //Space should be an owner of Regions
@@ -23,14 +23,14 @@ impl Space {
 
     pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
         let check = || {
-            if let Some(_) = self.regions.get(name) {
-                return Err(Error::Renamed(format!("region name {} has existed!", name)))
+            if let Some(v) = self.regions.get(name) {
+                return Err(Error::Renamed(name.to_string(), format!("region name {} has existed!", name)));
             }
             if let Some(v) = self.regions.iter().find(|(_, v)| {
                 region.info.base >= v.info.base && region.info.base < v.info.base + v.info.size ||
                     region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size
             }) {
-                return Err(Error::Overlap(format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info)))
+                return Err(Error::Overlap(v.0.to_string(), format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info)));
             }
             Ok(())
         };
@@ -70,17 +70,17 @@ impl Space {
     }
 }
 
-pub struct SpaceTable{
+pub struct SpaceTable {
     spaces: Mutex<HashMap<String, Arc<RwLock<Space>>>>,
 }
 
 impl SpaceTable {
-    pub fn global()->Arc<SpaceTable> {
+    pub fn global() -> Arc<SpaceTable> {
         static mut SPACE_TABLE: Option<Arc<SpaceTable>> = None;
 
         unsafe {
             SPACE_TABLE.get_or_insert_with(|| {
-                Arc::new(SpaceTable{spaces:Mutex::new(HashMap::new())})
+                Arc::new(SpaceTable { spaces: Mutex::new(HashMap::new()) })
             }).clone()
         }
     }
