@@ -77,10 +77,10 @@ impl Space {
 impl Display for Space {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let mut paires = self.regions.iter().collect::<Vec<_>>();
-        paires.sort_by(|&l, &r| {l.1.info.base.cmp(&r.1.info.base)});
+        paires.sort_by(|&l, &r| { l.1.info.base.cmp(&r.1.info.base) });
         writeln!(f, "regions:");
         for (name, region) in paires {
-            writeln!(f, "   {:#16}: {:#016x} -> {:#016x}", name, region.info.base, region.info.base + region.info.size - 1)?;
+            writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", name, region.get_type(), region.info.base, region.info.base + region.info.size - 1)?;
         }
         Ok(())
     }

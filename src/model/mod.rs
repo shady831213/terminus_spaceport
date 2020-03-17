@@ -110,6 +110,17 @@ enum Memory {
     IO(Arc<Box<dyn IOAccess>>),
 }
 
+impl Memory {
+    fn get_type(&self) -> String {
+        match self {
+            Memory::Model(_) => "Model".to_string(),
+            Memory::Block(_) => "Block".to_string(),
+            Memory::MMap(region) => format!("MMap({})", region.memory.get_type()),
+            Memory::IO(_) => "IO".to_string(),
+        }
+    }
+}
+
 macro_rules! memory_access {
     ($x:ident, $f:ident, $obj:expr, $($p:expr),+) => {match $obj {
             Memory::IO(io) => $x::$f(io.deref().deref(),$($p,)+),
@@ -178,6 +189,10 @@ pub struct Region {
 }
 
 impl Region {
+    pub fn get_type(&self) -> String {
+        self.memory.get_type()
+    }
+
     pub fn io(base: u64, size: u64, io: Box<dyn IOAccess>) -> Arc<Region> {
         Arc::new(Region {
             memory: Memory::IO(Arc::new(io)),
