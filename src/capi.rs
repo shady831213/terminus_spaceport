@@ -64,7 +64,7 @@ extern "C" fn __dm_add_region(space: &Arc<RwLock<Space>>, name: *const c_char, r
     let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
     match space.write().unwrap().add_region(name, region.deref()) {
         Ok(r) => to_c_ptr(r),
-        Err(e) => panic!(e)
+        Err(e) => panic!(format!("{:?}", e))
     }
 }
 
