@@ -13,6 +13,7 @@ use std::ops::Deref;
 use super::*;
 use std::cell::RefCell;
 use std::marker::{Sync, Send};
+use std::hash::{BuildHasherDefault, Hasher};
 
 pub trait U8Access {
     fn write(&self, addr: u64, data: u8);
@@ -70,14 +71,28 @@ pub trait U64Access: BytesAccess {
 
 pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access + Sync + Send {}
 
+#[derive(Default)]
+struct ModelHasher(u64);
+
+impl Hasher for ModelHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, _: &[u8]) {
+        panic!("not implement")
+    }
+    fn write_u64(&mut self, i: u64) {
+        self.0 = i
+    }
+}
 
 struct Model {
-    inner: RefCell<HashMap<u64, u8>>
+    inner: RefCell<HashMap<u64, u8, BuildHasherDefault<ModelHasher>>>
 }
 
 impl Model {
     fn new() -> Model {
-        Model { inner: RefCell::new(HashMap::new()) }
+        Model { inner: RefCell::new(HashMap::default()) }
     }
 }
 

@@ -1,7 +1,7 @@
 mod allocator;
-mod model;
+mod region;
 
-pub use model::*;
+pub use region::*;
 pub use allocator::*;
 
 #[cfg(test)]

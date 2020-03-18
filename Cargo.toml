@@ -20,3 +20,7 @@ crate-type = ["rlib","staticlib", "dylib"]
 [dependencies]
 rand = "0.7.3"
 terminus-spaceport-proc-macros = { path = "proc_macros" }
+
+[[bench]]
+name = "bench"
+path = "benchs/bench.rs"
