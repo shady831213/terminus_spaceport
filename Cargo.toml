@@ -1,5 +1,5 @@
 [package]
-name = "dpi-memory"
+name = "terminus-spaceport"
 version = "0.1.0"
 authors = ["shady831213 <shady831213@126.com>"]
 edition = "2018"
@@ -14,9 +14,9 @@ cc = "1.0"
 regex = "1"
 
 [lib]
-name = "dpi_memory"
+name = "terminus_spaceport"
 crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
 rand = "0.7.3"
-dpi-memory-proc-macros = { path = "proc_macros" }
+terminus-spaceport-proc-macros = { path = "proc_macros" }

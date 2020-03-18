@@ -42,7 +42,7 @@ fn main() {
         .include("csrc")
         .shared_flag(true)
         .static_flag(true)
-        .compile("dm.c");
+        .compile("ts.c");
 
     //build dyn lib
     let profile = env::var("PROFILE").expect("Can not get $PROFILE");
@@ -59,8 +59,8 @@ fn main() {
         .pic(true)
         .cargo_metadata(false)
         .out_dir(&final_dir)
-        .compile("dm.c.so");
-    fs::rename(&final_dir.join("libdm.c.so.a"), final_dir.join("libdm.c.so")).expect("Can not rename libdm.c.so.a!");
+        .compile("ts.c.so");
+    fs::rename(&final_dir.join("libts.c.so.a"), final_dir.join("libts.c.so")).expect("Can not rename libts.c.so.a!");
 
     //copy header file
     for file in [&hfiles[..], &vhfiles[..]].concat() {

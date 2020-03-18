@@ -1,6 +1,6 @@
-extern crate dpi_memory_proc_macros;
+extern crate terminus_spaceport_proc_macros;
 
-pub use dpi_memory_proc_macros::*;
+pub use terminus_spaceport_proc_macros::*;
 
 mod allocator;
 mod model;

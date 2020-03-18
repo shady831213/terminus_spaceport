@@ -1,20 +1,20 @@
-#include <dm_c.h>
+#include <ts_c.h>
 int main() {
-    void* space = dmc_space("root");
-    void* region = dmc_add_region(space, "region", dmc_alloc_region(NULL, 8, 1));
-    void* heap = dmc_heap(region);
-    void* region2 = dmc_alloc_region(heap, 2,1);
-    void* region3 = dmc_alloc_region(heap, 2,1);
-    void* region4 = dmc_map_region(dmc_get_region(space, "region"), 10);
-    printf("region base = %lu; size = %lu\n", dmc_region_info(dmc_get_region(space, "region"))->base, dmc_region_info(dmc_get_region(space, "region"))->size);
-    dmc_region_write_u16(dmc_get_region(space, "region"), dmc_region_info(region)->base, 0x5aa5);
-    printf("region4 base = %lu; size = %lu\n", dmc_region_info(region4)->base, dmc_region_info(region4)->size);
-    printf("region4 addr = %lu; data = %x\n", dmc_region_info(region4)->base, dmc_region_read_u8(region4, dmc_region_info(region4)->base));
-    printf("region4 addr = %lu; data = %x\n", dmc_region_info(region4)->base+1, dmc_region_read_u8(region4, dmc_region_info(region4)->base+1));
-    dmc_delete_region(space, "region");
-    dmc_free_region(region3);
-    dmc_free_region(region);
-    dmc_free_heap(heap);
-    dmc_free_region(region4);
-    dmc_free_region(region2);
+    void* space = tsc_space("root");
+    void* region = tsc_add_region(space, "region", tsc_alloc_region(NULL, 8, 1));
+    void* heap = tsc_heap(region);
+    void* region2 = tsc_alloc_region(heap, 2,1);
+    void* region3 = tsc_alloc_region(heap, 2,1);
+    void* region4 = tsc_map_region(tsc_get_region(space, "region"), 10);
+    printf("region base = %lu; size = %lu\n", tsc_region_info(tsc_get_region(space, "region"))->base, tsc_region_info(tsc_get_region(space, "region"))->size);
+    tsc_region_write_u16(tsc_get_region(space, "region"), tsc_region_info(region)->base, 0x5aa5);
+    printf("region4 base = %lu; size = %lu\n", tsc_region_info(region4)->base, tsc_region_info(region4)->size);
+    printf("region4 addr = %lu; data = %x\n", tsc_region_info(region4)->base, tsc_region_read_u8(region4, tsc_region_info(region4)->base));
+    printf("region4 addr = %lu; data = %x\n", tsc_region_info(region4)->base+1, tsc_region_read_u8(region4, tsc_region_info(region4)->base+1));
+    tsc_delete_region(space, "region");
+    tsc_free_region(region3);
+    tsc_free_region(region);
+    tsc_free_heap(heap);
+    tsc_free_region(region4);
+    tsc_free_region(region2);
 }
