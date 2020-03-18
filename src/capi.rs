@@ -1,12 +1,10 @@
-use crate::allocator::{Allocator, LockedAllocator};
 use std::any::Any;
 use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
 use crate::space::{Space, SpaceTable};
 use std::sync::{Arc, RwLock};
-use crate::model::*;
+use crate::memory::*;
 use std::ops::Deref;
-use crate::MemInfo;
 
 
 #[no_mangle]

@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::*;
+use crate::memory::*;
 use crate::space::*;
 use std::sync::Mutex;
 use std::sync::mpsc::{channel, Sender, Receiver};
@@ -66,7 +66,7 @@ fn space_query() {
     println!("{}", space.to_string());
 }
 
-#[dm_io(U8)]
+#[ts_io(U8)]
 struct TestIODevice {
     tx: Mutex<Sender<u8>>,
     rx: Mutex<Receiver<u8>>,

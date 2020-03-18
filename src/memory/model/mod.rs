@@ -6,7 +6,7 @@ extern crate rand;
 use std::collections::HashMap;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
-use crate::allocator::LockedAllocator;
+use super::allocator::LockedAllocator;
 use std::mem::size_of;
 use std::convert::TryInto;
 use std::ops::Deref;

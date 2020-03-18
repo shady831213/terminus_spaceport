@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock, Mutex};
-use crate::model::*;
+use crate::memory::*;
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
@@ -25,7 +25,7 @@ impl Space {
 
     pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
         let check = || {
-            if let Some(v) = self.regions.get(name) {
+            if let Some(_) = self.regions.get(name) {
                 return Err(Error::Renamed(name.to_string(), format!("region name {} has existed!", name)));
             }
             if let Some(v) = self.regions.iter().find(|(_, v)| {
@@ -78,7 +78,7 @@ impl Display for Space {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let mut paires = self.regions.iter().collect::<Vec<_>>();
         paires.sort_by(|&l, &r| { l.1.info.base.cmp(&r.1.info.base) });
-        writeln!(f, "regions:");
+        writeln!(f, "regions:")?;
         for (name, region) in paires {
             writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", name, region.get_type(), region.info.base, region.info.base + region.info.size - 1)?;
         }
