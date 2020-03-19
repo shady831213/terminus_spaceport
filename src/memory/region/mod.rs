@@ -12,7 +12,7 @@ use std::convert::TryInto;
 use std::ops::Deref;
 use super::*;
 use std::cell::RefCell;
-use std::marker::{Sync, Send};
+use std::marker::{Sync, Send, Sized};
 use std::hash::{BuildHasherDefault, Hasher};
 
 pub trait U8Access {
@@ -29,6 +29,16 @@ pub trait BytesAccess: U8Access {
     }
 }
 
+
+pub trait SizedAccess: BytesAccess {
+    fn write<T: Sized>(&self, addr: u64, data: &T) {
+        BytesAccess::write(self, align_down(addr, size_of::<u16>() as u64), unsafe { std::slice::from_raw_parts((data as *const T) as *const u8, std::mem::size_of::<T>()) });
+    }
+
+    fn read<T: Sized>(&self, addr: u64, data:&mut T){
+        BytesAccess::read(self, addr, unsafe { std::slice::from_raw_parts_mut((data as *mut T) as *mut u8, std::mem::size_of::<T>()) });
+    }
+}
 
 pub trait U16Access: BytesAccess {
     fn write(&self, addr: u64, data: u16) {
@@ -362,6 +372,8 @@ impl U64Access for Region {
     }
 }
 
+impl SizedAccess for Region {}
+
 impl Drop for Region {
     fn drop(&mut self) {
         if let Memory::Block(heap) = &self.memory {
@@ -401,11 +413,11 @@ impl Heap {
         })
     }
 
-    pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Arc<Region> {
+    pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Result<Arc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
-            Region::block(info.base, info.size, self)
+            Ok(Region::block(info.base, info.size, self))
         } else {
-            panic!("oom!")
+            Err("oom!".to_string())
         }
     }
 }

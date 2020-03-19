@@ -4,7 +4,7 @@ use super::*;
 fn region_drop() {
     let heap = Heap::global();
     println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<MemInfo>>());
-    let region = heap.alloc(9, 1);
+    let region = heap.alloc(9, 1).unwrap();
     let &info = &region.info;
     let heap1 = Heap::new(&region);
     let remap = Region::remap(0x80000000, &region);
@@ -15,7 +15,7 @@ fn region_drop() {
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).find(|i|{i == &info}), None);
     std::mem::drop(remap2);
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).find(|i|{i == &info}), None);
-    let region1 = heap1.alloc(2,1);
+    let region1 = heap1.alloc(2,1).unwrap();
     std::mem::drop(heap1);
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).find(|i|{i == &info}), None);
     let remap3 = Region::remap(0x10000000, &region1);
@@ -32,7 +32,7 @@ fn region_access() {
 
     let heap = &Heap::global();
     {
-        let region = heap.alloc(9, 8);
+        let region = heap.alloc(9, 8).unwrap();
         let remap = Region::remap(0x80000000, &region);
         let remap2 = Region::remap_partial(0x10000000, &region, 0, 5);
         let remap3 = Region::remap_partial(0x20000000, &region, 5, 4);

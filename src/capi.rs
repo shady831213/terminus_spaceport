@@ -88,17 +88,17 @@ extern "C" fn __ts_delete_region(space: &Arc<RwLock<Space>>, name: *const c_char
 
 #[no_mangle]
 extern "C" fn __ts_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const Box<Arc<Region>> {
-    to_c_ptr(unsafe {
+    match unsafe {
         if heap.is_null() {
-            // println!("alloc from global heap!");
             Heap::global().alloc(size, align)
         } else {
             let p = heap.as_ref().unwrap();
-            let region = p.alloc(size, align);
-            // println!("alloc {:?} from heap!", region.info);
-            region
+            p.alloc(size, align)
         }
-    })
+    }{
+        Ok(region) => to_c_ptr(region),
+        Err(msg) => panic!(msg)
+    }
 }
 
 #[no_mangle]

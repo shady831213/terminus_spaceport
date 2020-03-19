@@ -6,6 +6,8 @@ pub mod memory;
 
 pub mod space;
 
+mod virtio;
+
 mod capi;
 
 #[cfg(test)]
