@@ -211,14 +211,15 @@ fn avail_test() {
     avail_ring.ring[5] = 1;
 
 
-    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 32).unwrap().info;
-    SizedAccess::write(memory.deref(), avail_mem.base, &avail_ring);
+    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 32).unwrap();
+    assert_eq!(avail_mem.info.size, 4 + 10*2);
+    SizedAccess::write(avail_mem.deref(), avail_mem.info.base, &avail_ring);
     queue.last_avail_idx = 11;
     for pair in queue.avail_iter().enumerate() {
         assert_eq!(avail_ring.ring[pair.0 + (queue.last_avail_idx % queue.num) as usize], pair.1)
     }
     queue.last_avail_idx = 14;
-    U16Access::write(memory.deref(), avail_mem.base + 2, 16);
+    U16Access::write(avail_mem.deref(), avail_mem.info.base + 2, 16);
     for pair in queue.avail_iter().enumerate() {
         assert_eq!(avail_ring.ring[pair.0 + (queue.last_avail_idx % queue.num) as usize], pair.1)
     }
