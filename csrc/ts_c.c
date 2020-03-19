@@ -47,6 +47,10 @@ void* tsc_map_region(const void* region, uint64_t base) {
     return __ts_map_region(region, base);
 }
 
+void* tsc_map_region_partial(const void* region, uint64_t base, uint64_t offset, uint64_t size) {
+    return __ts_map_region_partial(region, base, offset, size);
+}
+
 void* tsc_heap(const void* region) {
     return __ts_heap(region);
 }

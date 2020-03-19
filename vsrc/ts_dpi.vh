@@ -26,6 +26,7 @@ import "DPI-C" function chandle tsv_space(input string name);
 import "DPI-C" function chandle tsv_get_region(input chandle space , input string name);
 import "DPI-C" function chandle tsv_alloc_region(input chandle heap, input longint unsigned size, input longint unsigned align);
 import "DPI-C" function chandle tsv_map_region(input chandle region, input longint unsigned base);
+import "DPI-C" function chandle tsv_map_region_partial(input chandle region, input longint unsigned base, input longint unsigned offset, input longint unsigned size);
 import "DPI-C" function chandle tsv_heap(input chandle region);
 import "DPI-C" function void tsv_free_region(input chandle region);
 import "DPI-C" function void tsv_free_heap(input chandle heap);

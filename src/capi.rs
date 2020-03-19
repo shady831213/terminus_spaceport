@@ -126,6 +126,10 @@ extern "C" fn __ts_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Bo
     to_c_ptr(Region::remap(base, region.deref()))
 }
 
+#[no_mangle]
+extern "C" fn __ts_map_region_partial(region: &Box<Arc<Region>>, base: u64, offset:u64, size:u64) -> *const Box<Arc<Region>> {
+    to_c_ptr(Region::remap_partial(base, region.deref(), offset, size))
+}
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u8(region: &Box<Arc<Region>>, addr: u64, data: u8) {

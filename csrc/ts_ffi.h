@@ -20,6 +20,7 @@ extern void __ts_delete_region(const void* space, const char* name);
 
 extern void* __ts_alloc_region(void* heap, uint64_t size, uint64_t align);
 extern void* __ts_map_region(const void* region, uint64_t base);
+extern void* __ts_map_region_partial(const void* region, uint64_t base, uint64_t offset, uint64_t size);
 extern void* __ts_heap(const void* region);
 extern void __ts_free_region(const void* region);
 extern void __ts_free_heap(const void* heap);
