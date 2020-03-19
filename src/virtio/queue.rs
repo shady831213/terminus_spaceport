@@ -240,7 +240,10 @@ impl<'a, T> Desc<'a, T> {
 #[test]
 fn get_desc_test() {
     let memory = Heap::global().alloc(32, 16).unwrap();
-    let queue = Queue::new(&memory, QueueSetting { max_queue_size: 2, manual_recv: false });
+    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 2, manual_recv: false });
+    let heap = Heap::new(&memory);
+    let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
+    queue.desc_addr = desc_mem.info.base;
     queue.add_desc(0, &DescMeta {
         addr: 0xa5a5,
         len: 0x5a5a,
@@ -255,6 +258,7 @@ fn get_desc_test() {
         next: 0xbeaf,
     });
     assert_eq!(desc.next().is_none(), true);
+
 }
 
 #[test]
@@ -275,8 +279,8 @@ fn avail_test() {
     avail_ring.ring[4] = 7;
     avail_ring.ring[5] = 1;
 
-
-    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 32).unwrap();
+    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
+    queue.avail_addr = avail_mem.info.base;
     assert_eq!(avail_mem.info.size, 4 + 10 * 2);
     SizedAccess::write(avail_mem.deref(), avail_mem.info.base, &avail_ring);
     queue.last_avail_idx = 11;
