@@ -118,10 +118,24 @@ impl U32Access for Model {}
 
 impl U64Access for Model {}
 
+struct Remap {
+    region: Arc<Region>,
+    info: MemInfo,
+}
+
+impl Remap {
+    fn new(region: &Arc<Region>, info: MemInfo) -> Remap {
+        Remap {
+            region: Arc::clone(region),
+            info,
+        }
+    }
+}
+
 enum Memory {
     Model(Arc<Mutex<Model>>),
     Block(Arc<Heap>),
-    MMap(Arc<Region>),
+    Remap(Remap),
     IO(Arc<Box<dyn IOAccess>>),
 }
 
@@ -130,7 +144,7 @@ impl Memory {
         match self {
             Memory::Model(_) => "Model".to_string(),
             Memory::Block(_) => "Block".to_string(),
-            Memory::MMap(region) => format!("MMap({})", region.memory.get_type()),
+            Memory::Remap(remap) => format!("Remap({}@{:#016x} -> {:#016x})", remap.region.memory.get_type(), remap.info.base, remap.info.base + remap.info.size),
             Memory::IO(_) => "IO".to_string(),
         }
     }
@@ -141,7 +155,7 @@ macro_rules! memory_access {
             Memory::IO(io) => $x::$f(io.deref().deref(),$($p,)+),
             Memory::Model(model) => $x::$f(model.lock().unwrap().deref(),$($p,)+),
             Memory::Block(heap) =>  $x::$f(heap.memory.deref(),$($p,)+),
-            Memory::MMap(memory) => $x::$f(memory.deref(),$($p,)+),
+            Memory::Remap(remap) => $x::$f(remap.region.deref(),$($p,)+),
         }
         }
 }
@@ -229,11 +243,20 @@ impl Region {
         })
     }
 
-    pub fn mmap(base: u64, memory: &Arc<Region>) -> Arc<Region> {
+    pub fn remap(base: u64, memory: &Arc<Region>) -> Arc<Region> {
         let info = memory.info;
         Arc::new(Region {
-            memory: Memory::MMap(Arc::clone(memory)),
+            memory: Memory::Remap(Remap::new(memory, info)),
             info: MemInfo { base: base, size: info.size },
+        })
+    }
+
+    pub fn remap_partial(base: u64, memory: &Arc<Region>, offset: u64, size: u64) -> Arc<Region> {
+        assert!(offset + size <= memory.info.size);
+        let info = memory.info;
+        Arc::new(Region {
+            memory: Memory::Remap(Remap::new(memory, MemInfo { base: info.base + offset, size: size })),
+            info: MemInfo { base: base, size: size },
         })
     }
 
@@ -246,7 +269,7 @@ impl Region {
             self.check_range(addr)
         }
         match &self.memory {
-            Memory::MMap(memory) => va - self.info.base + memory.deref().info.base,
+            Memory::Remap(remap) => va - self.info.base + remap.info.base,
             _ => va,
         }
     }
@@ -275,31 +298,67 @@ impl BytesAccess for Region {
 
 impl U16Access for Region {
     fn write(&self, addr: u64, data: u16) {
-        U16Access::write(&self.memory, self.translate(addr, 2), data)
+        let pa = self.translate(addr, 2);
+        if pa & 0x1 == 0 {
+            U16Access::write(&self.memory, pa, data)
+        } else {
+            BytesAccess::write(&self.memory, pa, &data.to_le_bytes())
+        }
     }
 
     fn read(&self, addr: u64) -> u16 {
-        U16Access::read(&self.memory, self.translate(addr, 2))
+        let pa = self.translate(addr, 2);
+        if pa & 0x1 == 0 {
+            U16Access::read(&self.memory, pa)
+        } else {
+            let mut bytes = [0 as u8; size_of::<u16>()];
+            BytesAccess::read(&self.memory, pa, &mut bytes);
+            u16::from_le_bytes(bytes.try_into().unwrap())
+        }
     }
 }
 
 impl U32Access for Region {
     fn write(&self, addr: u64, data: u32) {
-        U32Access::write(&self.memory, self.translate(addr, 4), data)
+        let pa = self.translate(addr, 4);
+        if pa & 0x3 == 0 {
+            U32Access::write(&self.memory, pa, data)
+        } else {
+            BytesAccess::write(&self.memory, pa, &data.to_le_bytes())
+        }
     }
 
     fn read(&self, addr: u64) -> u32 {
-        U32Access::read(&self.memory, self.translate(addr, 4))
+        let pa = self.translate(addr, 4);
+        if pa & 0x3 == 0 {
+            U32Access::read(&self.memory, pa)
+        } else {
+            let mut bytes = [0 as u8; size_of::<u32>()];
+            BytesAccess::read(&self.memory, pa, &mut bytes);
+            u32::from_le_bytes(bytes.try_into().unwrap())
+        }
     }
 }
 
 impl U64Access for Region {
     fn write(&self, addr: u64, data: u64) {
-        U64Access::write(&self.memory, self.translate(addr, 8), data)
+        let pa = self.translate(addr, 8);
+        if pa & 0x7 == 0 {
+            U64Access::write(&self.memory, pa, data)
+        } else {
+            BytesAccess::write(&self.memory, pa, &data.to_le_bytes())
+        }
     }
 
     fn read(&self, addr: u64) -> u64 {
-        U64Access::read(&self.memory, self.translate(addr, 8))
+        let pa = self.translate(addr, 8);
+        if pa & 0x7 == 0 {
+            U64Access::read(&self.memory, pa)
+        } else {
+            let mut bytes = [0 as u8; size_of::<u64>()];
+            BytesAccess::read(&self.memory, pa, &mut bytes);
+            u64::from_le_bytes(bytes.try_into().unwrap())
+        }
     }
 }
 

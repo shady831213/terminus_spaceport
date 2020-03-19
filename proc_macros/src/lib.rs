@@ -10,7 +10,7 @@ use syn::punctuated::Punctuated;
 use proc_macro2::{Span, Ident};
 
 #[proc_macro_attribute]
-pub fn ts_io(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn derive_io(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as Args);
     let item = match syn::parse::<syn::Item>(input) {
         Ok(a) => a,

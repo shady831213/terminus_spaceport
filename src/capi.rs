@@ -123,7 +123,7 @@ extern "C" fn __ts_free_heap(heap: *const Box<Arc<Heap>>) {
 
 #[no_mangle]
 extern "C" fn __ts_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Box<Arc<Region>> {
-    to_c_ptr(Region::mmap(base, region.deref()))
+    to_c_ptr(Region::remap(base, region.deref()))
 }
 
 

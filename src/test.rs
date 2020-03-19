@@ -16,8 +16,8 @@ fn space_drop() {
     let region = space.add_region("region", &heap.alloc(9, 1)).unwrap();
     let &info = &region.info;
     let heap1 = Box::new(Heap::new(&space.get_region("region").unwrap()));
-    let remap = Box::new(Region::mmap(0x80000000, &space.get_region("region").unwrap()));
-    let remap2 = Region::mmap(0x10000000, &space.get_region("region").unwrap());
+    let remap = Box::new(Region::remap(0x80000000, &space.get_region("region").unwrap()));
+    let remap2 = Region::remap(0x10000000, &space.get_region("region").unwrap());
     println!("{:?}", heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).collect::<Vec<MemInfo>>());
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).find(|i| { i == &info }), None);
     std::mem::drop(region);
@@ -30,7 +30,7 @@ fn space_drop() {
     std::mem::drop(heap1);
     println!("{:?}", heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).collect::<Vec<MemInfo>>());
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).find(|i| { i == &info }), None);
-    let remap3 = Region::mmap(0x10000000, &region1);
+    let remap3 = Region::remap(0x10000000, &region1);
     std::mem::drop(region1);
     println!("{:?}", heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).collect::<Vec<MemInfo>>());
     assert_ne!(heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l| { l.car().unwrap() }).find(|i| { i == &info }), None);
@@ -49,8 +49,8 @@ fn space_query() {
     let mut space = Space::new();
     let heap = Heap::global();
     let region = space.add_region("region", &heap.alloc(9, 1)).unwrap();
-    let region2 = space.add_region("region2", &Region::mmap(0x80000000, &heap.alloc(9, 1))).unwrap();
-    let region3 = space.add_region("region3", &Region::mmap(0x10000000, &region)).unwrap();
+    let region2 = space.add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1))).unwrap();
+    let region3 = space.add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
     assert_eq!(space.get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
     assert_eq!(space.get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
 
@@ -66,7 +66,7 @@ fn space_query() {
     println!("{}", space.to_string());
 }
 
-#[ts_io(U8)]
+#[derive_io(U8)]
 struct TestIODevice {
     tx: Mutex<Sender<u8>>,
     rx: Mutex<Receiver<u8>>,
