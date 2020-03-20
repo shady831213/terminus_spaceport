@@ -46,24 +46,27 @@ fn space_drop() {
 
 #[test]
 fn space_query() {
-    let mut space = Space::new();
-    let heap = Heap::global();
-    let region = space.add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
-    let region2 = space.add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
-    let region3 = space.add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
-    assert_eq!(space.get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
-    assert_eq!(space.get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
+        let space = SpaceTable::global().get_space("space_query");
+        let heap = Heap::global();
+        let region = space.write().unwrap().add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
+        let region2 = space.write().unwrap().add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
+        let region3 = space.write().unwrap().add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
+        assert_eq!(space.read().unwrap().get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
+        assert_eq!(space.read().unwrap().get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
 
     let send_thread = {
         thread::spawn(move || {
+            let r = SpaceTable::global().get_space("space_query").read().unwrap().get_region("region2").unwrap();
             for i in 0..10 {
-                U8Access::write(region2.deref(), region2.info.base + 8, i);
+                U8Access::write(r.deref(), r.info.base + 8, i);
             }
         })
     };
     send_thread.join().unwrap();
 
-    println!("{}", space.to_string());
+    println!("{}", space.read().unwrap().to_string());
+
+
 }
 
 #[derive_io(U8)]
@@ -96,7 +99,7 @@ impl U8Access for TestIODevice {
 
 #[test]
 fn simple_device() {
-    let space = SpaceTable::global().get_space("");
+    let space = SpaceTable::global().get_space("simple_device");
     let (recv_tx, recv_rx) = channel();
     let (send_tx, send_rx) = channel();
     let (stop_tx, stop_rx) = channel::<()>();
@@ -106,21 +109,21 @@ fn simple_device() {
     thread::spawn(move || {
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(SpaceTable::global().get_space("").read().unwrap().get_region("testIO").unwrap().deref(), 10 - (i as u64), i);
+            U8Access::write(SpaceTable::global().get_space("simple_device").read().unwrap().get_region("testIO").unwrap().deref(), 10 - (i as u64), i);
         }
     });
 
     thread::spawn(move || {
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(SpaceTable::global().get_space("").read().unwrap().get_region("testIO").unwrap().deref(), 10 - (i as u64), i);
+            U8Access::write(SpaceTable::global().get_space("simple_device").read().unwrap().get_region("testIO").unwrap().deref(), 10 - (i as u64), i);
         }
     });
 
     let recv_thread = {
         thread::spawn(move || {
             for _ in 0..40 {
-                U8Access::read(SpaceTable::global().get_space("").read().unwrap().get_region("testIO").unwrap().deref(), 0);
+                U8Access::read(SpaceTable::global().get_space("simple_device").read().unwrap().get_region("testIO").unwrap().deref(), 0);
             }
         })
     };

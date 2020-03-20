@@ -40,7 +40,16 @@ void* tsv_add_region(const void* space, const char* name, void* region) {
 }
 
 void* tsv_alloc_region(void* heap, uint64_t size, uint64_t align) {
-    return __ts_alloc_region(heap, size, align);
+    assert(heap != NULL);
+    return __ts_alloc_region(heap, size, align, false);
+}
+
+void* tsv_root_region(uint64_t size, uint64_t align) {
+    return __ts_alloc_region(NULL, size, align, false);
+}
+
+void* tsv_lazy_root_region(uint64_t size, uint64_t align) {
+    return __ts_alloc_region(NULL, size, align, true);
 }
 
 void* tsv_map_region(const void* region, uint64_t base) {

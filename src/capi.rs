@@ -87,15 +87,19 @@ extern "C" fn __ts_delete_region(space: &Arc<RwLock<Space>>, name: *const c_char
 }
 
 #[no_mangle]
-extern "C" fn __ts_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64) -> *const Box<Arc<Region>> {
+extern "C" fn __ts_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u64, lazy: bool) -> *const Box<Arc<Region>> {
     match unsafe {
         if heap.is_null() {
-            Heap::global().alloc(size, align)
+            if lazy {
+                Heap::global().lazy_alloc(size, align)
+            } else {
+                Heap::global().alloc(size, align)
+            }
         } else {
             let p = heap.as_ref().unwrap();
             p.alloc(size, align)
         }
-    }{
+    } {
         Ok(region) => to_c_ptr(region),
         Err(msg) => panic!(msg)
     }
@@ -127,7 +131,7 @@ extern "C" fn __ts_map_region(region: &Box<Arc<Region>>, base: u64) -> *const Bo
 }
 
 #[no_mangle]
-extern "C" fn __ts_map_region_partial(region: &Box<Arc<Region>>, base: u64, offset:u64, size:u64) -> *const Box<Arc<Region>> {
+extern "C" fn __ts_map_region_partial(region: &Box<Arc<Region>>, base: u64, offset: u64, size: u64) -> *const Box<Arc<Region>> {
     to_c_ptr(Region::remap_partial(base, region.deref(), offset, size))
 }
 

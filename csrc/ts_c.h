@@ -13,6 +13,9 @@ void* tsc_get_region(const void* space, const char* name);
 void* tsc_add_region(const void* space, const char* name, void* region);
 
 void* tsc_alloc_region(void* heap, uint64_t size, uint64_t align);
+void* tsc_root_region(uint64_t size, uint64_t align);
+void* tsc_lazy_root_region(uint64_t size, uint64_t align);
+
 void* tsc_map_region(const void* region, uint64_t base);
 void* tsc_map_region_partial(const void* region, uint64_t base, uint64_t offset, uint64_t size);
 void* tsc_heap(const void* region);

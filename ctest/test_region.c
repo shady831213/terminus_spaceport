@@ -1,7 +1,7 @@
 #include <ts_c.h>
 int main() {
     void* space = tsc_space("root");
-    void* region = tsc_add_region(space, "region", tsc_alloc_region(NULL, 8, 1));
+    void* region = tsc_add_region(space, "region", tsc_lazy_root_region(8, 1));
     void* heap = tsc_heap(region);
     void* region2 = tsc_alloc_region(heap, 2,1);
     void* region3 = tsc_alloc_region(heap, 2,1);

@@ -29,8 +29,8 @@ int main(int argc, char** argv)
   Verilated::randReset(2);
   Verilated::commandArgs(argc, argv);
 
-  void* main_memory = tsc_alloc_region(NULL,16ul, 8ul);
-  void* rom = tsc_alloc_region(NULL, 8ul, 8ul);
+  void* main_memory = tsc_lazy_root_region(16ul, 8ul);
+  void* rom = tsc_root_region(8ul, 8ul);
 
   tsc_add_region(tsc_space("root"), "main_memory", tsc_map_region(main_memory, 0x800000000ul));
   tsc_add_region(tsc_space("root"), "rom",  tsc_map_region(rom, 0x100000000ul));

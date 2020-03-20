@@ -40,7 +40,16 @@ void* tsc_add_region(const void* space, const char* name, void* region) {
 }
 
 void* tsc_alloc_region(void* heap, uint64_t size, uint64_t align) {
-    return __ts_alloc_region(heap, size, align);
+    assert(heap != NULL);
+    return __ts_alloc_region(heap, size, align, false);
+}
+
+void* tsc_root_region(uint64_t size, uint64_t align) {
+    return __ts_alloc_region(NULL, size, align, false);
+}
+
+void* tsc_lazy_root_region(uint64_t size, uint64_t align) {
+    return __ts_alloc_region(NULL, size, align, true);
 }
 
 void* tsc_map_region(const void* region, uint64_t base) {

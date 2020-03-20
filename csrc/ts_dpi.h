@@ -13,6 +13,9 @@ void* tsv_get_region(const void* space, const char* name);
 void* tsv_add_region(const void* space, const char* name, void* region);
 
 void* tsv_alloc_region(void* heap, uint64_t size, uint64_t align);
+void* tsv_root_region(uint64_t size, uint64_t align);
+void* tsv_lazy_root_region(uint64_t size, uint64_t align);
+
 void* tsv_map_region(const void* region, uint64_t base);
 void* tsv_map_region_partial(const void* region, uint64_t base, uint64_t offset, uint64_t size);
 void* tsv_heap(const void* region);
