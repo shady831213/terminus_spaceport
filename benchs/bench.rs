@@ -16,7 +16,7 @@ static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 const MAX_RND:usize = 1000000;
 #[bench]
 fn bench_model_access(b: &mut Bencher) {
-    let region = Heap::global().alloc(0x1_0000_0000, 1).unwrap();
+    let region = GHEAP.alloc(0x1_0000_0000, 1).unwrap();
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
     for _ in 0 .. MAX_RND {
