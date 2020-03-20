@@ -10,7 +10,7 @@ use std::ops::Deref;
 use super::*;
 use std::marker::{Sync, Send, Sized};
 use std::hash::{BuildHasherDefault, Hasher};
-use std::borrow::BorrowMut;
+use std::borrow::{BorrowMut, Borrow};
 
 pub trait U8Access {
     fn write(&self, addr: u64, data: u8);
@@ -109,8 +109,11 @@ impl U8Access for LazyModel {
     }
 
     fn read(&self, addr: u64) -> u8 {
-        *self.inner.lock().unwrap().entry(addr).
-            or_insert(0)
+        if let Some(&v) = self.inner.lock().unwrap().get(&addr) {
+            v
+        } else {
+            0
+        }
     }
 }
 
@@ -123,8 +126,14 @@ impl BytesAccess for LazyModel {
     }
     fn read(&self, addr: u64, data: &mut [u8]) {
         {
-            let mut inner = self.inner.lock().unwrap();
-            data.iter_mut().enumerate().for_each(|(offset, d)| { *d = *inner.borrow_mut().entry(addr + offset as u64).or_insert(0) });
+            let inner = self.inner.lock().unwrap();
+            data.iter_mut().enumerate().for_each(|(offset, d)| {
+                *d = if let Some(&v)= inner.borrow().get(&(addr + offset as u64)) {
+                    v
+                } else {
+                    0
+                }
+            });
         }
     }
 }
@@ -137,7 +146,7 @@ impl U64Access for LazyModel {}
 
 struct Model {
     info: MemInfo,
-    inner: Mutex<Vec<u8>>,
+    inner: Mutex<Box<[u8]>>,
 }
 
 impl Model {
@@ -148,7 +157,7 @@ impl Model {
         }
         Model {
             info,
-            inner: Mutex::new(vec![0; size as usize]),
+            inner: Mutex::new(vec![0; size as usize].into_boxed_slice()),
         }
     }
 }

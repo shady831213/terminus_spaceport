@@ -29,8 +29,8 @@ fn bench_model_access(b: &mut Bencher) {
         *data
     };
     b.iter(|| {
-        U8Access::write(region.deref(), get_addr(), 0xaa);
-        U8Access::read(region.deref(), get_addr());
+        U64Access::write(region.deref(), get_addr(), 0xaa);
+        U64Access::read(region.deref(), get_addr());
     });
     unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
 }
