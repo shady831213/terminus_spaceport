@@ -28,3 +28,6 @@ jemalloc-sys = {version = "0.3", features = ["stats"]}
 [[bench]]
 name = "bench"
 path = "benchs/bench.rs"
+
+[features]
+memprof = []

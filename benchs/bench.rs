@@ -9,6 +9,7 @@ use rand::Rng;
 use std::ops::Deref;
 use std::ptr::{null, null_mut};
 
+#[cfg(feature = "memprof")]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
@@ -35,5 +36,6 @@ fn bench_model_access(b: &mut Bencher) {
         U64Access::write(region.deref(), get_addr(), 0xaa);
         U64Access::read(region.deref(), get_addr());
     });
+    #[cfg(feature = "memprof")]
     unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
 }
