@@ -4,6 +4,7 @@ use crate::memory::*;
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
+use std::borrow::BorrowMut;
 
 #[derive(Debug)]
 pub enum Error {
@@ -87,23 +88,23 @@ impl Display for Space {
 }
 
 pub struct SpaceTable {
-    spaces: Mutex<HashMap<String, Arc<RwLock<Space>>>>,
+    spaces: HashMap<String, Arc<Mutex<Space>>>,
 }
 
 impl SpaceTable {
-    pub fn global() -> Arc<SpaceTable> {
-        static mut SPACE_TABLE: Option<Arc<SpaceTable>> = None;
+    pub fn global() -> Arc<Mutex<SpaceTable>> {
+        static mut SPACE_TABLE: Option<Arc<Mutex<SpaceTable>>> = None;
 
         unsafe {
             SPACE_TABLE.get_or_insert_with(|| {
-                Arc::new(SpaceTable { spaces: Mutex::new(HashMap::new()) })
+                Arc::new(Mutex::new(SpaceTable { spaces: HashMap::new() }))
             }).clone()
         }
     }
 
-    pub fn get_space(&self, name: &str) -> Arc<RwLock<Space>> {
-        Arc::clone(self.spaces.lock().unwrap()
+    pub fn get_space(&mut self, name: &str) -> Arc<Mutex<Space>> {
+        self.spaces
             .entry(String::from(name))
-            .or_insert(Arc::new(RwLock::new(Space::new()))))
+            .or_insert(Arc::new(Mutex::new(Space::new()))).clone()
     }
 }
