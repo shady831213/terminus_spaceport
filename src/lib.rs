@@ -1,4 +1,6 @@
 extern crate terminus_spaceport_proc_macros;
+#[macro_use]
+extern crate lazy_static;
 
 pub use terminus_spaceport_proc_macros::*;
 

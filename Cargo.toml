@@ -18,6 +18,7 @@ name = "terminus_spaceport"
 crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
+lazy_static = "1.4"
 terminus-spaceport-proc-macros = { path = "proc_macros" }
 
 [dev-dependencies]

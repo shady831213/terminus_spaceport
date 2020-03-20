@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn region_drop() {
-    let heap = Heap::global();
+    let heap = &GHEAP;
     println!("{:?}",heap.allocator.lock().unwrap().alloced_blocks.iter().map(|l|{l.car().unwrap()}).collect::<Vec<MemInfo>>());
     let region = heap.alloc(9, 1).unwrap();
     let &info = &region.info;
@@ -30,7 +30,7 @@ fn region_drop() {
 #[test]
 fn region_access() {
 
-    let heap = &Heap::global();
+    let heap = &&GHEAP;
     {
         let region = heap.alloc(9, 8).unwrap();
         let remap = Region::remap(0x80000000, &region);

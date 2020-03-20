@@ -128,7 +128,7 @@ impl BytesAccess for LazyModel {
         {
             let inner = self.inner.lock().unwrap();
             data.iter_mut().enumerate().for_each(|(offset, d)| {
-                *d = if let Some(&v)= inner.borrow().get(&(addr + offset as u64)) {
+                *d = if let Some(&v) = inner.borrow().get(&(addr + offset as u64)) {
                     v
                 } else {
                     0
@@ -206,7 +206,8 @@ impl Remap {
 enum Memory {
     Model(Model),
     LazyModel(LazyModel),
-    Block(Arc<dyn Free>, Arc<Region>),
+    Block(Arc<Heap>, Arc<Region>),
+    RootBlock(Arc<Region>),
     Remap(Remap),
     IO(Arc<Box<dyn IOAccess>>),
 }
@@ -217,6 +218,7 @@ impl Memory {
             Memory::Model(_) => "Model".to_string(),
             Memory::LazyModel(_) => "LazyModel".to_string(),
             Memory::Block(_, _) => "Block".to_string(),
+            Memory::RootBlock(_) => "Block".to_string(),
             Memory::Remap(remap) => format!("Remap({}@{:#016x} -> {:#016x})", remap.region.memory.get_type(), remap.info.base, remap.info.base + remap.info.size),
             Memory::IO(_) => "IO".to_string(),
         }
@@ -229,6 +231,7 @@ macro_rules! memory_access {
             Memory::Model(model) => $x::$f(model,$($p,)+),
             Memory::LazyModel(model) => $x::$f(model,$($p,)+),
             Memory::Block(_, region) =>  $x::$f(region.deref(),$($p,)+),
+            Memory::RootBlock(region) =>  $x::$f(region.deref(),$($p,)+),
             Memory::Remap(remap) => $x::$f(remap.region.deref(),$($p,)+),
         }
         }
@@ -317,9 +320,16 @@ impl Region {
         })
     }
 
-    fn block(base: u64, size: u64, heap: &Arc<dyn Free>, memory: &Arc<Region>) -> Arc<Region> {
+    fn block(base: u64, size: u64, heap: &Arc<Heap>, memory: &Arc<Region>) -> Arc<Region> {
         Arc::new(Region {
             memory: Memory::Block(Arc::clone(heap), Arc::clone(memory)),
+            info: MemInfo { base: base, size: size },
+        })
+    }
+
+    fn root_block(base: u64, size: u64, memory: &Arc<Region>) -> Arc<Region> {
+        Arc::new(Region {
+            memory: Memory::RootBlock(Arc::clone(memory)),
             info: MemInfo { base: base, size: size },
         })
     }
@@ -449,12 +459,14 @@ impl Drop for Region {
     fn drop(&mut self) {
         if let Memory::Block(heap, _) = &self.memory {
             heap.free(self.info.base)
+        } else if let Memory::RootBlock(_) = &self.memory {
+            GHEAP.free(self.info.base)
         }
     }
 }
 
-trait Free{
-    fn free(&self, addr:u64);
+trait Free {
+    fn free(&self, addr: u64);
 }
 
 #[cfg(test)]
@@ -472,17 +484,6 @@ pub struct Heap {
 }
 
 impl Heap {
-    pub fn global() -> Arc<GlobalHeap> {
-        static mut HEAP: Option<Arc<GlobalHeap>> = None;
-
-        unsafe {
-            HEAP.get_or_insert_with(|| {
-                Arc::new(GlobalHeap {
-                    allocator: LockedAllocator::new(0, 0x8000_0000_0000_0000),
-                })
-            }).clone()
-        }
-    }
     pub fn new(memory: &Arc<Region>) -> Arc<Heap> {
         Arc::new(Heap {
             memory: Arc::clone(memory),
@@ -492,7 +493,7 @@ impl Heap {
 
     pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Result<Arc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
-            Ok(Region::block(info.base, info.size, &(Arc::clone(self) as Arc<dyn Free>), &self.memory))
+            Ok(Region::block(info.base, info.size, self, &self.memory))
         } else {
             Err("oom!".to_string())
         }
@@ -500,9 +501,13 @@ impl Heap {
 }
 
 impl Free for Heap {
-    fn free(&self, addr:u64) {
+    fn free(&self, addr: u64) {
         self.allocator.free(addr)
     }
+}
+
+lazy_static! {
+    pub static ref GHEAP:GlobalHeap =GlobalHeap{allocator: LockedAllocator::new(0, 0x8000_0000_0000_0000)};
 }
 
 #[cfg(test)]
@@ -516,17 +521,17 @@ pub struct GlobalHeap {
 }
 
 impl GlobalHeap {
-    pub fn lazy_alloc(self: &Arc<Self>, size: u64, align: u64) -> Result<Arc<Region>, String> {
+    pub fn lazy_alloc(&self, size: u64, align: u64) -> Result<Arc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
-            Ok(Region::block(info.base, info.size, &(Arc::clone(self) as Arc<dyn Free>), &Region::lazy_model(info.base, info.size)))
+            Ok(Region::root_block(info.base, info.size, &Region::lazy_model(info.base, info.size)))
         } else {
             Err("oom!".to_string())
         }
     }
 
-    pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> Result<Arc<Region>, String> {
+    pub fn alloc(&self, size: u64, align: u64) -> Result<Arc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
-            Ok(Region::block(info.base, info.size, &(Arc::clone(self) as Arc<dyn Free>), &Region::model(info.base, info.size)))
+            Ok(Region::root_block(info.base, info.size, &Region::model(info.base, info.size)))
         } else {
             Err("oom!".to_string())
         }
@@ -534,7 +539,7 @@ impl GlobalHeap {
 }
 
 impl Free for GlobalHeap {
-    fn free(&self, addr:u64) {
+    fn free(&self, addr: u64) {
         self.allocator.free(addr)
     }
 }

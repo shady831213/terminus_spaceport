@@ -1,8 +1,8 @@
 use std::any::Any;
 use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
-use crate::space::{Space, SpaceTable};
-use std::sync::{Arc, Mutex};
+use crate::space::{Space, SPACE_TABLE};
+use std::sync::Arc;
 use crate::memory::*;
 use std::ops::Deref;
 
@@ -53,28 +53,28 @@ extern "C" fn __ts_free_addr(a: *mut c_void, addr: u64) {
 
 
 #[no_mangle]
-extern "C" fn __ts_space(name: *const c_char) -> *const Arc<Mutex<Space>> {
-    Box::into_raw(Box::new(SpaceTable::global().lock().unwrap().get_space(unsafe { CStr::from_ptr(name).to_str().unwrap() })))
+extern "C" fn __ts_space(name: *const c_char) -> *const Arc<Space> {
+    Box::into_raw(Box::new(SPACE_TABLE.get_space(unsafe { CStr::from_ptr(name).to_str().unwrap() })))
 }
 
 #[no_mangle]
-extern "C" fn __ts_add_region(space: &Arc<Mutex<Space>>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
+extern "C" fn __ts_add_region(space: &Arc<Space>, name: *const c_char, region: &Box<Arc<Region>>) -> *const Box<Arc<Region>> {
     let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
-    match space.lock().unwrap().add_region(name, region.deref()) {
+    match space.add_region(name, region.deref()) {
         Ok(r) => to_c_ptr(r),
         Err(e) => panic!(format!("{:?}", e))
     }
 }
 
 #[no_mangle]
-extern "C" fn __ts_clean_region(space: &Arc<Mutex<Space>>, name: *const c_char, region: *const Box<Arc<Region>>) {
-    space.lock().unwrap().clean(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region)
+extern "C" fn __ts_clean_region(space: &Arc<Space>, name: *const c_char, region: *const Box<Arc<Region>>) {
+    space.clean(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region)
 }
 
 #[no_mangle]
-extern "C" fn __ts_get_region(space: &Arc<Mutex<Space>>, name: *const c_char) -> *const Box<Arc<Region>> {
+extern "C" fn __ts_get_region(space: &Arc<Space>, name: *const c_char) -> *const Box<Arc<Region>> {
     let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
-    if let Some(r) = space.lock().unwrap().get_region(name) {
+    if let Some(r) = space.get_region(name) {
         to_c_ptr(r)
     } else {
         panic!(format!("no region {}", name))
@@ -82,8 +82,8 @@ extern "C" fn __ts_get_region(space: &Arc<Mutex<Space>>, name: *const c_char) ->
 }
 
 #[no_mangle]
-extern "C" fn __ts_delete_region(space: &Arc<Mutex<Space>>, name: *const c_char) {
-    space.lock().unwrap().delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
+extern "C" fn __ts_delete_region(space: &Arc<Space>, name: *const c_char) {
+    space.delete_region(unsafe { CStr::from_ptr(name).to_str().unwrap() })
 }
 
 #[no_mangle]
@@ -91,9 +91,9 @@ extern "C" fn __ts_alloc_region(heap: *const Box<Arc<Heap>>, size: u64, align: u
     match unsafe {
         if heap.is_null() {
             if lazy {
-                Heap::global().lazy_alloc(size, align)
+                GHEAP.lazy_alloc(size, align)
             } else {
-                Heap::global().alloc(size, align)
+                GHEAP.alloc(size, align)
             }
         } else {
             let p = heap.as_ref().unwrap();

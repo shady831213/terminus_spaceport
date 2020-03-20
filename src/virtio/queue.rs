@@ -1,4 +1,4 @@
-use crate::memory::{Region, Heap, SizedAccess, U16Access};
+use crate::memory::{Region, GHEAP, Heap, SizedAccess, U16Access};
 use std::sync::Arc;
 use std::{mem, result};
 use std::ops::Deref;
@@ -114,7 +114,7 @@ impl Queue {
     }
 
     fn get_desc<'a>(&'a self, idx: u16) -> DescHead<'a> {
-        DescHead::new(self.memory.deref(), self.desc_addr, idx, self.get_queue_size(),1, PhantomData)
+        DescHead::new(self.memory.deref(), self.desc_addr, idx, self.get_queue_size(), 1, PhantomData)
     }
 
     fn add_desc(&self, idx: u16, desc: &DescMeta) {
@@ -188,12 +188,12 @@ pub struct Desc<'a, T> {
 impl<'a, T> Desc<'a, T> {
     fn new(memory: &'a Region,
            desc_addr: u64,
-           idx:u16,
+           idx: u16,
            queue_size: u16,
            ttl: u16,
            marker: PhantomData<&'a T>) -> Desc<'a, T> {
         let mut desc = Desc {
-            meta:DescMeta::empty(),
+            meta: DescMeta::empty(),
             memory,
             desc_addr,
             queue_size,
@@ -212,7 +212,7 @@ impl<'a, T> Desc<'a, T> {
         self.meta.flags & DESC_F_WRITE != 0
     }
 
-    fn check_idx(&self,idx:u16) -> Result<()> {
+    fn check_idx(&self, idx: u16) -> Result<()> {
         if idx >= self.queue_size {
             Err(Error::InvalidIdx)
         } else {
@@ -220,7 +220,7 @@ impl<'a, T> Desc<'a, T> {
         }
     }
 
-    fn meta_addr(&self,idx:u16) -> u64 {
+    fn meta_addr(&self, idx: u16) -> u64 {
         if let Err(_) = self.check_idx(idx) {
             panic!(format!("invalid desc idx! {}", idx))
         }
@@ -231,7 +231,7 @@ impl<'a, T> Desc<'a, T> {
         if self.last() {
             None
         } else {
-            Some(Desc::<'a, Self>::new(self.memory, self.desc_addr, self.meta.next, self.queue_size, self.ttl+1, PhantomData))
+            Some(Desc::<'a, Self>::new(self.memory, self.desc_addr, self.meta.next, self.queue_size, self.ttl + 1, PhantomData))
         }
     }
 }
@@ -239,7 +239,7 @@ impl<'a, T> Desc<'a, T> {
 
 #[test]
 fn get_desc_test() {
-    let memory = Heap::global().alloc(32, 16).unwrap();
+    let memory = GHEAP.alloc(32, 16).unwrap();
     let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 2, manual_recv: false });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
@@ -258,12 +258,11 @@ fn get_desc_test() {
         next: 0xbeaf,
     });
     assert_eq!(desc.next().is_none(), true);
-
 }
 
 #[test]
 fn avail_test() {
-    let memory = Heap::global().alloc(1024, 16).unwrap();
+    let memory = GHEAP.alloc(1024, 16).unwrap();
     let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 10, manual_recv: false });
     let heap = Heap::new(&memory);
     let mut avail_ring: RingMeta<[RingAvailMetaElem; 10]> = RingMeta {

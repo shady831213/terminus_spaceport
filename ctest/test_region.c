@@ -17,4 +17,7 @@ int main() {
     tsc_free_heap(heap);
     tsc_free_region(region4);
     tsc_free_region(region2);
+    void* new_region = tsc_lazy_root_region(1,1);
+    assert(tsc_region_info(new_region)->base == 0);
+    tsc_free_region(new_region);
 }
