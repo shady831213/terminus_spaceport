@@ -18,11 +18,11 @@ name = "terminus_spaceport"
 crate-type = ["rlib","staticlib", "dylib"]
 
 [dependencies]
-jemallocator = "0.3"
 terminus-spaceport-proc-macros = { path = "proc_macros" }
 
 [dev-dependencies]
 rand = "0.7.3"
+jemallocator = "0.3"
 jemalloc-sys = {version = "0.3", features = ["stats"]}
 
 [[bench]]

@@ -9,6 +9,9 @@ use rand::Rng;
 use std::ops::Deref;
 use std::ptr::{null, null_mut};
 
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 const MAX_RND:usize = 1000000;
 #[bench]
 fn bench_model_access(b: &mut Bencher) {

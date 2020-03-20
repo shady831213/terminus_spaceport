@@ -46,13 +46,13 @@ fn space_drop() {
 
 #[test]
 fn space_query() {
-        let space = SpaceTable::global().get_space("space_query");
-        let heap = Heap::global();
-        let region = space.write().unwrap().add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
-        let region2 = space.write().unwrap().add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
-        let region3 = space.write().unwrap().add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
-        assert_eq!(space.read().unwrap().get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
-        assert_eq!(space.read().unwrap().get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
+    let space = SpaceTable::global().get_space("space_query");
+    let heap = Heap::global();
+    let region = space.write().unwrap().add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
+    let region2 = space.write().unwrap().add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
+    let region3 = space.write().unwrap().add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
+    assert_eq!(space.read().unwrap().get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
+    assert_eq!(space.read().unwrap().get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
 
     let send_thread = {
         thread::spawn(move || {
@@ -65,8 +65,6 @@ fn space_query() {
     send_thread.join().unwrap();
 
     println!("{}", space.read().unwrap().to_string());
-
-
 }
 
 #[derive_io(U8)]
