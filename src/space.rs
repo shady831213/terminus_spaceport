@@ -12,16 +12,19 @@ pub enum Error {
 }
 
 
+struct RegionCPtr(*const Box<Arc<Region>>);
+
+unsafe impl Send for RegionCPtr {}
+
+unsafe impl Sync for RegionCPtr {}
+
+
 //Space should be an owner of Regions
 pub struct Space {
     regions: Mutex<HashMap<String, Arc<Region>>>,
     //for ffi free
-    ptrs: Mutex<HashMap<String, Vec<*const Box<Arc<Region>>>>>,
+    ptrs: Mutex<HashMap<String, Vec<RegionCPtr>>>,
 }
-
-unsafe impl Send for Space {}
-
-unsafe impl Sync for Space {}
 
 impl Space {
     pub fn new() -> Space {
@@ -50,13 +53,10 @@ impl Space {
     }
 
     pub fn delete_region(&self, name: &str) {
-        let mut map = self.regions.lock().unwrap();
+        self.regions.lock().unwrap().remove(name);
         let mut ptrs = self.ptrs.lock().unwrap();
-        if let Some(v) = map.remove(name) {
-            std::mem::drop(v)
-        }
         if let Some(ps) = ptrs.remove(name) {
-            ps.iter().for_each(|ptr| { std::mem::drop(unsafe { (*ptr).read() }) })
+            ps.iter().for_each(|RegionCPtr(ptr)| { std::mem::drop(unsafe { (*ptr).read() }) })
         }
     }
 
@@ -79,9 +79,9 @@ impl Space {
     }
 
     pub fn clean(&self, name: &str, ptr: *const Box<Arc<Region>>) {
-        let mut ptrs = self.ptrs.lock().unwrap();
-        let e = ptrs.entry(String::from(name)).or_insert(vec![]);
-        e.push(ptr)
+        self.ptrs.lock().unwrap()
+            .entry(String::from(name)).or_insert(vec![])
+            .push(RegionCPtr(ptr))
     }
 }
 
