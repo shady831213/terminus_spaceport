@@ -1,6 +1,6 @@
 use crate::memory::{Region, GHEAP, Heap, SizedAccess, U16Access};
 use std::sync::Arc;
-use std::{mem, result};
+use std::{mem, result, slice};
 use std::ops::Deref;
 use std::cmp::min;
 use std::num::Wrapping;
@@ -9,8 +9,20 @@ use std::marker::{PhantomData, Sized};
 const DESC_F_NEXT: u16 = 0x1;
 const DESC_F_WRITE: u16 = 0x2;
 
-enum Error {
-    InvalidIdx
+#[derive(Debug)]
+pub enum Error {
+    InvalidDesc(String),
+    InvalidAvail(String),
+    InvalidUsed(String),
+    InvalidInit(String),
+    ServerError(String),
+    MemError(String),
+}
+
+impl From<String> for Error {
+    fn from(error: String) -> Self {
+        Error::MemError(error)
+    }
 }
 
 type Result<T> = result::Result<T, Error>;
@@ -21,8 +33,8 @@ pub struct QueueSetting {
     manual_recv: bool,
 }
 
-#[derive(Debug, Eq, PartialEq)]
-struct DescMeta {
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub struct DescMeta {
     addr: u64,
     len: u32,
     flags: u16,
@@ -45,17 +57,30 @@ struct RingMetaHeader {
     idx: u16,
 }
 
-type RingAvailMetaElem = u16;
-
-struct RingMeta<T: ?Sized> {
-    info: RingMetaHeader,
-    ring: T,
+impl RingMetaHeader {
+    fn empty() -> RingMetaHeader {
+        RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        }
+    }
 }
 
+type RingAvailMetaElem = u16;
 
+#[derive(Copy, Clone)]
 struct RingUsedMetaElem {
     id: u32,
     len: u32,
+}
+
+impl RingUsedMetaElem {
+    fn empty() -> RingUsedMetaElem {
+        RingUsedMetaElem {
+            id: 0,
+            len: 0,
+        }
+    }
 }
 
 pub struct Queue {
@@ -94,66 +119,117 @@ impl Queue {
         self.used_addr = 0;
     }
 
-    fn get_queue_size(&self) -> u16 {
-        min(self.queue_size, self.setting.max_queue_size)
+    fn get_queue_size(&self) -> usize {
+        min(self.queue_size, self.setting.max_queue_size) as usize
     }
 
     fn check_idx(&self, idx: u16) -> Result<()> {
-        if idx >= self.get_queue_size() {
-            Err(Error::InvalidIdx)
+        if idx as usize >= self.get_queue_size() {
+            Err(Error::InvalidDesc(format!("invalid desc idx! {}", idx)))
         } else {
             Ok(())
         }
     }
 
-    fn desc_addr(&self, idx: u16) -> u64 {
-        if let Err(_) = self.check_idx(idx) {
-            panic!(format!("invalid desc idx! {}", idx))
+    fn desc_addr(&self, idx: u16) -> Result<u64> {
+        self.check_idx(idx)?;
+        Ok(self.desc_addr + (idx as usize * mem::size_of::<DescMeta>()) as u64)
+    }
+
+    fn avail_elem_addr(&self, idx: u16) -> u64 {
+        self.avail_addr + mem::size_of::<RingMetaHeader>() as u64 + (idx as usize % self.get_queue_size()) as u64 * mem::size_of::<RingAvailMetaElem>() as u64
+    }
+
+    pub fn desc_iter<'a>(&'a self, idx: u16) -> DescIter<'a> {
+        DescIter::new(self, idx, PhantomData)
+    }
+
+    pub fn set_desc(&self, idx: u16, desc: &DescMeta) -> Result<()> {
+        Ok(SizedAccess::write(self.memory.deref(), self.desc_addr(idx)?, desc))
+    }
+
+    pub fn get_desc(&self, idx: u16) -> Result<DescMeta> {
+        let mut desc = DescMeta::empty();
+        SizedAccess::read(self.memory.deref(), self.desc_addr(idx)?, &mut desc);
+        Ok(desc)
+    }
+
+    fn check_range(&self, base: u64, size: u64) -> bool {
+        !(base < self.memory.info.base ||
+            base >= self.memory.info.base + self.memory.info.size ||
+            base + size < self.memory.info.base ||
+            base + size >= self.memory.info.base + self.memory.info.size)
+    }
+
+    fn desc_table_size(&self) -> usize {
+        mem::size_of::<DescMeta>() * self.get_queue_size()
+    }
+
+    fn avail_ring_size(&self) -> usize {
+        mem::size_of::<RingAvailMetaElem>() * self.get_queue_size()
+    }
+
+    fn used_ring_size(&self) -> usize {
+        mem::size_of::<RingUsedMetaElem>() * self.get_queue_size()
+    }
+
+    pub fn check_init(&self) -> Result<()> {
+        if self.ready {
+            return Err(Error::InvalidInit("init when ready is not unset!".to_string()));
         }
-        self.desc_addr + (idx as usize * mem::size_of::<DescMeta>()) as u64
+        if !self.check_range(self.desc_addr, self.desc_table_size() as u64) {
+            return Err(Error::InvalidInit(format!("invalid desc addr {:#016x}", self.desc_addr)));
+        }
+        if !self.check_range(self.avail_addr, (self.avail_ring_size() + mem::size_of::<RingMetaHeader>()) as u64) {
+            return Err(Error::InvalidInit(format!("invalid avail addr {:#016x}", self.avail_addr)));
+        }
+        if !self.check_range(self.used_addr, (self.used_ring_size() + mem::size_of::<RingMetaHeader>()) as u64) {
+            return Err(Error::InvalidInit(format!("invalid used addr {:#016x}", self.used_addr)));
+        }
+        Ok(())
     }
 
-    fn get_desc<'a>(&'a self, idx: u16) -> DescHead<'a> {
-        DescHead::new(self.memory.deref(), self.desc_addr, idx, self.get_queue_size(), 1, PhantomData)
+
+    pub fn get_avail_idx(&self) -> Wrapping<u16> {
+        Wrapping(U16Access::read(self.memory.deref(), self.avail_addr + 2))
     }
 
-    fn add_desc(&self, idx: u16, desc: &DescMeta) {
-        SizedAccess::write(self.memory.deref(), self.desc_addr(idx), desc)
+    pub fn set_avail_idx(&self, idx: u16) {
+        U16Access::write(self.memory.deref(), self.avail_addr + 2, idx)
     }
 
-    fn avail_iter<'a>(&'a self) -> AvailIter<'a> {
+    pub fn set_avail_desc(&self, avail_idx: u16, desc_idx: u16) -> Result<()> {
+        self.check_idx(desc_idx)?;
+        U16Access::write(self.memory.deref(), self.avail_elem_addr(avail_idx), desc_idx);
+        Ok(())
+    }
+
+    pub fn avail_iter<'a>(&'a self) -> AvailIter<'a> {
         let mut header = RingMetaHeader { flags: 0, idx: 0 };
         SizedAccess::read(self.memory.deref(), self.avail_addr, &mut header);
-        AvailIter::new(self.memory.deref(),
-                       self.avail_addr,
+        AvailIter::new(self,
                        Wrapping(header.idx),
-                       Wrapping(self.last_avail_idx), self.get_queue_size(),
+                       Wrapping(self.last_avail_idx),
                        PhantomData)
     }
 }
 
 pub struct AvailIter<'a> {
-    memory: &'a Region,
-    avail_addr: u64,
+    queue: &'a Queue,
     end_idx: Wrapping<u16>,
     next_idx: Wrapping<u16>,
-    queue_size: u16,
     marker: PhantomData<&'a Queue>,
 }
 
 impl<'a> AvailIter<'a> {
-    fn new(memory: &'a Region,
-           avail_addr: u64,
+    fn new(queue: &'a Queue,
            end_idx: Wrapping<u16>,
            next_idx: Wrapping<u16>,
-           queue_size: u16,
            marker: PhantomData<&'a Queue>) -> AvailIter<'a> {
         AvailIter {
-            memory,
-            avail_addr,
+            queue,
             end_idx,
             next_idx,
-            queue_size,
             marker,
         }
     }
@@ -166,129 +242,322 @@ impl<'a> Iterator for AvailIter<'a> {
             return None;
         }
 
-        let ring_elem_addr = self.avail_addr + mem::size_of::<RingMetaHeader>() as u64 + (self.next_idx.0 % self.queue_size) as u64 * mem::size_of::<RingAvailMetaElem>() as u64;
+        let ring_elem_addr = self.queue.avail_elem_addr(self.next_idx.0);
         let mut desc_idx = 0 as RingAvailMetaElem;
-        SizedAccess::read(self.memory, ring_elem_addr, &mut desc_idx);
+        SizedAccess::read(self.queue.memory.deref(), ring_elem_addr, &mut desc_idx);
         self.next_idx += Wrapping(1);
         Some(desc_idx)
     }
 }
 
-type DescHead<'a> = Desc<'a, Queue>;
-
-pub struct Desc<'a, T> {
-    meta: DescMeta,
-    memory: &'a Region,
-    desc_addr: u64,
-    queue_size: u16,
+pub struct DescIter<'a> {
+    queue: &'a Queue,
     ttl: u16,
-    marker: PhantomData<&'a T>,
+    head:u16,
+    idx: u16,
+    last: bool,
+    marker: PhantomData<&'a Queue>,
 }
 
-impl<'a, T> Desc<'a, T> {
-    fn new(memory: &'a Region,
-           desc_addr: u64,
-           idx: u16,
-           queue_size: u16,
-           ttl: u16,
-           marker: PhantomData<&'a T>) -> Desc<'a, T> {
-        let mut desc = Desc {
-            meta: DescMeta::empty(),
-            memory,
-            desc_addr,
-            queue_size,
-            ttl,
+impl <'a> DescIter<'a> {
+    fn new(queue:&'a Queue, head:u16, marker:PhantomData<&'a Queue>) -> DescIter<'a> {
+        DescIter{
+            queue,
+            ttl:1,
+            head,
+            idx: head,
+            last:false,
             marker,
-        };
-        SizedAccess::read(memory, desc.meta_addr(idx), &mut desc.meta);
-        desc
-    }
-
-    pub fn last(&self) -> bool {
-        self.meta.flags & DESC_F_NEXT == 0 || self.ttl >= self.queue_size
-    }
-
-    pub fn writeable(&self) -> bool {
-        self.meta.flags & DESC_F_WRITE != 0
-    }
-
-    fn check_idx(&self, idx: u16) -> Result<()> {
-        if idx >= self.queue_size {
-            Err(Error::InvalidIdx)
-        } else {
-            Ok(())
         }
     }
 
-    fn meta_addr(&self, idx: u16) -> u64 {
-        if let Err(_) = self.check_idx(idx) {
-            panic!(format!("invalid desc idx! {}", idx))
-        }
-        self.desc_addr + (idx as usize * mem::size_of::<DescMeta>()) as u64
+    fn has_next(&self, meta:&DescMeta) -> bool {
+        meta.flags & DESC_F_NEXT == DESC_F_NEXT
     }
 
-    pub fn next(&'a self) -> Option<Desc::<'a, Self>> {
-        if self.last() {
-            None
-        } else {
-            Some(Desc::<'a, Self>::new(self.memory, self.desc_addr, self.meta.next, self.queue_size, self.ttl + 1, PhantomData))
+    fn dead_loop(&self) -> bool {
+        self.ttl as usize >= self.queue.get_queue_size()
+    }
+}
+
+impl<'a> Iterator for DescIter<'a> {
+    type Item = Result<DescMeta>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.last {
+            return None
+        }
+        match self.queue.get_desc(self.idx) {
+            Ok(meta) => {
+                if self.dead_loop() {
+                    self.last = true;
+                    Some(Err(Error::InvalidDesc(format!("infinity descriptor chain start from {}!", self.head))))
+                } else {
+                    self.ttl += 1;
+                    self.idx = meta.next;
+                    self.last = !self.has_next(&meta);
+                    Some(Ok(meta))
+                }
+            }
+            Err(e) => Some(Err(e))
         }
     }
 }
 
+pub trait QueueServer {
+    fn add_to_queue(&mut self, inputs: &[&Region], outputs: &[&Region]) -> Result<u16>;
+}
+
+pub struct DefaultQueueServer<'a> {
+    queue: &'a Queue,
+    num_used: u16,
+    free_head: u16,
+}
+
+impl<'a> DefaultQueueServer<'a> {
+    fn new(queue: &'a Queue) -> DefaultQueueServer<'a> {
+        DefaultQueueServer {
+            queue,
+            num_used: 0,
+            free_head: 0,
+        }
+    }
+    fn init(&mut self) -> Result<()> {
+        self.queue.check_init()?;
+        let mut descs = vec![DescMeta::empty(); self.queue.get_queue_size()];
+        for i in 0..(descs.len() - 1) {
+            descs[i].next = i as u16 + 1;
+        }
+        for (i, desc) in descs.iter().enumerate() {
+            self.queue.set_desc(i as u16, desc)?;
+        }
+        Ok(())
+    }
+}
+
+impl<'a> QueueServer for DefaultQueueServer<'a> {
+    fn add_to_queue(&mut self, inputs: &[&Region], outputs: &[&Region]) -> Result<u16> {
+        if inputs.is_empty() && outputs.is_empty() {
+            return Err(Error::ServerError("inputs and outputs are both empty!".to_string()));
+        }
+        if inputs.len() + outputs.len() + self.num_used as usize > self.queue.get_queue_size() as usize {
+            return Err(Error::ServerError("inputs and outputs are too big!".to_string()));
+        }
+
+        // allocate descriptors from free list
+        let head = self.free_head;
+        let mut last = self.free_head;
+        for input in inputs.iter() {
+            let desc = &mut self.queue.get_desc(self.free_head)?;
+            desc.addr = input.info.base;
+            desc.len = input.info.size as u32;
+            desc.flags = 0;
+            desc.flags |= DESC_F_NEXT;
+            self.queue.set_desc(self.free_head, desc)?;
+            last = self.free_head;
+            self.free_head = desc.next;
+        }
+        for output in outputs.iter() {
+            let desc = &mut self.queue.get_desc(self.free_head)?;
+            desc.addr = output.info.base;
+            desc.len = output.info.size as u32;
+            desc.flags = 0;
+            desc.flags |= DESC_F_NEXT | DESC_F_WRITE;
+            self.queue.set_desc(self.free_head, desc)?;
+            last = self.free_head;
+            self.free_head = desc.next;
+        }
+        {
+            let desc = &mut self.queue.get_desc(last)?;
+            desc.flags = desc.flags & !DESC_F_NEXT;
+            self.queue.set_desc(last, desc)?;
+        }
+
+        self.num_used += (inputs.len() + outputs.len()) as u16;
+        let mut avail_idx = self.queue.get_avail_idx();
+        self.queue.set_avail_desc(avail_idx.0, head)?;
+        avail_idx += Wrapping(1);
+        self.queue.set_avail_idx(avail_idx.0);
+
+        Ok(self.free_head)
+    }
+}
+
+#[cfg(test)]
+struct RingMeta<T: ?Sized> {
+    info: RingMetaHeader,
+    ring: T,
+}
 
 #[test]
 fn get_desc_test() {
-    let memory = GHEAP.alloc(32, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 2, manual_recv: false });
+    const QUEUE_SIZE: usize = 2;
+    let memory = GHEAP.alloc(1024, 16).unwrap();
+    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
+    let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
+        info: RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        },
+        ring: [0 as RingAvailMetaElem; QUEUE_SIZE],
+    };
+    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
+    let used_ring: RingMeta<[RingUsedMetaElem; QUEUE_SIZE]> = RingMeta {
+        info: RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        },
+        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
+    };
+    let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
     queue.desc_addr = desc_mem.info.base;
-    queue.add_desc(0, &DescMeta {
+    queue.avail_addr = avail_mem.info.base;
+    queue.used_addr = used_mem.info.base;
+
+    let mut server = DefaultQueueServer::new(&queue);
+    server.init().unwrap();
+    queue.set_desc(0, &DescMeta {
+        addr: 0xa5a5,
+        len: 0x5a5a,
+        flags: 0,
+        next: 0xbeaf,
+    }).unwrap();
+    let mut desc_iter = queue.desc_iter(0);
+    let desc = desc_iter.next().unwrap().unwrap();
+    assert_eq!(desc, DescMeta {
         addr: 0xa5a5,
         len: 0x5a5a,
         flags: 0,
         next: 0xbeaf,
     });
-    let desc = queue.get_desc(0);
-    assert_eq!(desc.meta, DescMeta {
-        addr: 0xa5a5,
-        len: 0x5a5a,
-        flags: 0,
-        next: 0xbeaf,
-    });
-    assert_eq!(desc.next().is_none(), true);
+    assert_eq!(desc_iter.next().is_none(), true);
 }
 
 #[test]
-fn avail_test() {
+fn avail_iter_test() {
+    const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 10, manual_recv: false });
+    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
     let heap = Heap::new(&memory);
-    let mut avail_ring: RingMeta<[RingAvailMetaElem; 10]> = RingMeta {
+    let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
+    let mut avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
         info: RingMetaHeader {
             flags: 0,
             idx: 14,
         },
-        ring: [0 as RingAvailMetaElem; 10],
+        ring: [0 as RingAvailMetaElem; QUEUE_SIZE],
     };
     avail_ring.ring[1] = 3;
     avail_ring.ring[2] = 5;
     avail_ring.ring[3] = 8;
     avail_ring.ring[4] = 7;
     avail_ring.ring[5] = 1;
-
     let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
+    let used_ring: RingMeta<[RingUsedMetaElem; QUEUE_SIZE]> = RingMeta {
+        info: RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        },
+        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
+    };
+    let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
+    queue.desc_addr = desc_mem.info.base;
     queue.avail_addr = avail_mem.info.base;
+    queue.used_addr = used_mem.info.base;
+
+
     assert_eq!(avail_mem.info.size, 4 + 10 * 2);
     SizedAccess::write(avail_mem.deref(), avail_mem.info.base, &avail_ring);
     queue.last_avail_idx = 11;
     for pair in queue.avail_iter().enumerate() {
-        assert_eq!(avail_ring.ring[pair.0 + (queue.last_avail_idx % queue.get_queue_size()) as usize], pair.1)
+        assert_eq!(avail_ring.ring[pair.0 + queue.last_avail_idx as usize % queue.get_queue_size()], pair.1)
     }
     queue.last_avail_idx = 14;
     U16Access::write(avail_mem.deref(), avail_mem.info.base + 2, 16);
     for pair in queue.avail_iter().enumerate() {
-        assert_eq!(avail_ring.ring[pair.0 + (queue.last_avail_idx % queue.get_queue_size()) as usize], pair.1)
+        assert_eq!(avail_ring.ring[pair.0 + queue.last_avail_idx as usize % queue.get_queue_size()], pair.1)
+    }
+}
+
+#[test]
+fn add_to_queue_test() {
+    const QUEUE_SIZE: usize = 10;
+    let memory = GHEAP.alloc(1024, 16).unwrap();
+    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let heap = Heap::new(&memory);
+    let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
+    let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
+        info: RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        },
+        ring: [0 as RingAvailMetaElem; QUEUE_SIZE],
+    };
+    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
+    let used_ring: RingMeta<[RingUsedMetaElem; QUEUE_SIZE]> = RingMeta {
+        info: RingMetaHeader {
+            flags: 0,
+            idx: 0,
+        },
+        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
+    };
+    let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
+    queue.desc_addr = desc_mem.info.base;
+    queue.avail_addr = avail_mem.info.base;
+    queue.used_addr = used_mem.info.base;
+
+    let mut server = DefaultQueueServer::new(&queue);
+    server.init().unwrap();
+    for i in 0..(queue.get_queue_size() - 1) {
+        let desc = queue.get_desc(i as u16).unwrap();
+        assert_eq!(desc.next, i as u16 + 1)
+    }
+
+    let read_mem = heap.alloc(7, 1).unwrap();
+    let write_mem = heap.alloc(6, 1).unwrap();
+
+    server.add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+
+    let read_mem1 = heap.alloc(7, 1).unwrap();
+    let write_mem1 = heap.alloc(6, 1).unwrap();
+    let write_mem2 = heap.alloc(6, 1).unwrap();
+    let write_mem3 = heap.alloc(6, 1).unwrap();
+
+    server.add_to_queue(vec![read_mem1.deref()].as_slice(), vec![write_mem1.deref(), write_mem2.deref(), write_mem3.deref()].as_slice()).unwrap();
+
+    let mut avail_iter = queue.avail_iter();
+    let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());
+    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+        addr: read_mem.info.base,
+        len: read_mem.info.size as u32,
+        flags: DESC_F_NEXT,
+        next: 1,
+    });
+    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+        addr: write_mem.info.base,
+        len: write_mem.info.size as u32,
+        flags: DESC_F_WRITE,
+        next: 2,
+    });
+
+    assert!(desc_iter.next().is_none());
+
+    let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());
+    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+        addr: read_mem1.info.base,
+        len: read_mem1.info.size as u32,
+        flags: DESC_F_NEXT,
+        next: 3,
+    });
+
+    for (i, rest) in desc_iter.enumerate() {
+        let desc = rest.unwrap();
+        assert_eq!(desc.len, 6);
+        assert_eq!(desc.flags & DESC_F_WRITE, DESC_F_WRITE);
+        assert_eq!(desc.next, i as u16 + 4);
+        if desc.flags & DESC_F_NEXT == 0 {
+            assert_eq!(i, 2);
+        }
     }
 }
