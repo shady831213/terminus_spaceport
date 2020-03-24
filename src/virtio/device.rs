@@ -1,7 +1,6 @@
 use crate::memory::Region;
 use std::sync::Arc;
 use super::queue::{Queue,QueueSetting};
-use std::ops::Deref;
 
 pub struct Device{
     memory:Arc<Region>,

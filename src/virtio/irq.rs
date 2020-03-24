@@ -1,7 +1,5 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::result;
-use std::marker::PhantomData;
 
 #[derive(Debug)]
 pub enum Error {
@@ -13,7 +11,6 @@ pub type Result<T> = result::Result<T, Error>;
 
 pub struct IrqBit<'a> {
     pub enable: bool,
-    pub pending: bool,
     handler: Option<Box<dyn FnMut() + 'a>>,
 }
 
@@ -21,7 +18,6 @@ impl<'a> IrqBit<'a> {
     fn new() -> IrqBit<'a> {
         IrqBit {
             enable: false,
-            pending: false,
             handler: None,
         }
     }
@@ -31,7 +27,7 @@ impl<'a> IrqBit<'a> {
 
     pub fn send_irq(&mut self) -> Option<Result<()>> {
         if let Some(ref mut handler) = self.handler {
-            if self.enable && self.pending {
+            if self.enable {
                 Some(Ok((*handler)()))
             } else {
                 Some(Ok(()))
@@ -47,8 +43,8 @@ pub struct IrqSignal<'a>(RefCell<Vec<IrqBit<'a>>>);
 
 impl<'a> IrqSignal<'a> {
     pub fn new(len: usize) -> IrqSignal<'a> {
-        let mut irq = IrqSignal(RefCell::new(vec![]));
-        for i in 0..len {
+        let irq = IrqSignal(RefCell::new(vec![]));
+        for _ in 0..len {
             irq.0.borrow_mut().push(IrqBit::new())
         }
         irq
@@ -67,29 +63,14 @@ impl<'a> IrqSignal<'a> {
         Ok(self.0.borrow()[irq_num].enable)
     }
 
-    pub fn pending(&self, irq_num: usize) -> Result<bool> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow()[irq_num].pending)
-    }
-
     pub fn set_enable(&self, irq_num: usize) -> Result<()> {
         self.check_irq_num(irq_num)?;
         Ok(self.0.borrow_mut()[irq_num].enable = true)
     }
 
-    pub fn set_pending(&self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow_mut()[irq_num].pending = true)
-    }
-
     pub fn clr_enable(&self, irq_num: usize) -> Result<()> {
         self.check_irq_num(irq_num)?;
         Ok(self.0.borrow_mut()[irq_num].enable = false)
-    }
-
-    pub fn clr_pending(&self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow_mut()[irq_num].pending = false)
     }
 
     pub fn bind_handler<F: FnMut() + 'a>(&self, irq_num: usize, handler: F) -> Result<()> {

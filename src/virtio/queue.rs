@@ -1,6 +1,6 @@
 use crate::memory::{Region, GHEAP, Heap, SizedAccess, U16Access};
 use std::sync::Arc;
-use std::{mem, result, slice};
+use std::{mem, result};
 use std::ops::Deref;
 use std::cmp::min;
 use std::num::Wrapping;
@@ -70,10 +70,10 @@ impl RingMetaHeader {
 
 pub type RingAvailMetaElem = u16;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct RingUsedMetaElem {
-    id: u32,
-    len: u32,
+    pub id: u32,
+    pub len: u32,
 }
 
 impl RingUsedMetaElem {
@@ -88,6 +88,7 @@ impl RingUsedMetaElem {
 pub struct Queue {
     setting: QueueSetting,
     memory: Arc<Region>,
+    client: Option<Box<dyn QueueClient>>,
     ready: RefCell<bool>,
     queue_size: u16,
     last_avail_idx: RefCell<Wrapping<u16>>,
@@ -103,6 +104,7 @@ impl Queue {
         Queue {
             setting,
             memory: Arc::clone(memory),
+            client: None,
             ready: RefCell::new(false),
             queue_size: max_queue_size,
             last_avail_idx: RefCell::new(Wrapping(0)),
@@ -110,6 +112,10 @@ impl Queue {
             avail_addr: RefCell::new(0),
             used_addr: RefCell::new(0),
         }
+    }
+
+    pub fn bind_client(&mut self, client: impl QueueClient + 'static) {
+        self.client = Some(Box::new(client))
     }
 
     pub fn reset(&mut self) {
@@ -161,7 +167,7 @@ impl Queue {
         *self.ready.borrow()
     }
 
-    pub fn set_ready(&self, ready:bool) {
+    pub fn set_ready(&self, ready: bool) {
         *self.ready.borrow_mut() = ready
     }
 
@@ -169,7 +175,7 @@ impl Queue {
         *self.desc_addr.borrow()
     }
 
-    pub fn set_desc_addr(&self, desc_addr:u64) {
+    pub fn set_desc_addr(&self, desc_addr: u64) {
         *self.desc_addr.borrow_mut() = desc_addr
     }
 
@@ -177,7 +183,7 @@ impl Queue {
         *self.avail_addr.borrow()
     }
 
-    pub fn set_avail_addr(&self, avail_addr:u64) {
+    pub fn set_avail_addr(&self, avail_addr: u64) {
         *self.avail_addr.borrow_mut() = avail_addr
     }
 
@@ -185,10 +191,10 @@ impl Queue {
         *self.used_addr.borrow()
     }
 
-    pub fn set_used_addr(&self, used_addr:u64) {
+    pub fn set_used_addr(&self, used_addr: u64) {
         *self.used_addr.borrow_mut() = used_addr
     }
-    
+
     pub fn get_queue_size(&self) -> usize {
         min(self.queue_size, self.setting.max_queue_size) as usize
     }
@@ -282,19 +288,19 @@ impl Queue {
                        PhantomData)
     }
 
-    // pub fn notify_client(&self) -> Result<()> {
-    //     if let Some(ref client) = self.client {
-    //         for desc_head in self.avail_iter() {
-    //             if !client.receive(self, desc_head)? {
-    //                 return Ok(());
-    //             }
-    //             *self.last_avail_idx.borrow_mut() += Wrapping(1);
-    //         }
-    //         Ok(())
-    //     } else {
-    //         Ok(())
-    //     }
-    // }
+    pub fn notify_client(&self) -> Result<()> {
+        if let Some(ref client) = self.client {
+            for desc_head in self.avail_iter() {
+                if !client.receive(self, desc_head)? {
+                    return Ok(());
+                }
+                *self.last_avail_idx.borrow_mut() += Wrapping(1);
+            }
+            Ok(())
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub struct AvailIter<'a> {
@@ -388,10 +394,12 @@ impl<'a> Iterator for DescIter<'a> {
 }
 
 pub trait QueueServer {
-    fn add_to_queue(&mut self, inputs: &[&Region], outputs: &[&Region]) -> Result<()>;
+    fn add_to_queue(&self, inputs: &[&Region], outputs: &[&Region]) -> Result<()>;
     fn has_used(&self) -> bool;
     fn num_available_desc(&self) -> usize;
-    fn pop_used(&mut self) -> Result<Option<RingUsedMetaElem>>;
+    fn pop_used(&self) -> Option<(RingUsedMetaElem, DescIter)>;
+    fn free_used(&self, used:&RingUsedMetaElem) -> Result<()>;
+
 }
 
 
@@ -399,23 +407,23 @@ pub trait QueueClient {
     fn receive(&self, queue: &Queue, desc_head: u16) -> Result<bool>;
 }
 
-pub struct DefaultQueueServer<'a> {
-    queue: &'a Queue,
-    num_used: u16,
-    free_head: u16,
-    last_used_idx: u16,
+pub struct DefaultQueueServer {
+    queue: Arc<Queue>,
+    num_used: RefCell<u16>,
+    free_head: RefCell<u16>,
+    last_used_idx: RefCell<u16>,
 }
 
-impl<'a> DefaultQueueServer<'a> {
-    pub fn new(queue: &'a Queue) -> DefaultQueueServer<'a> {
+impl DefaultQueueServer {
+    pub fn new(queue: &Arc<Queue>) -> DefaultQueueServer {
         DefaultQueueServer {
-            queue,
-            num_used: 0,
-            free_head: 0,
-            last_used_idx: 0,
+            queue:Arc::clone(queue),
+            num_used: RefCell::new(0),
+            free_head: RefCell::new(0),
+            last_used_idx: RefCell::new(0),
         }
     }
-    pub fn init(&mut self) -> Result<()> {
+    pub fn init(&self) -> Result<()> {
         self.queue.check_init()?;
         let mut descs = vec![DescMeta::empty(); self.queue.get_queue_size()];
         for i in 0..(descs.len() - 1) {
@@ -431,42 +439,42 @@ impl<'a> DefaultQueueServer<'a> {
         Ok(())
     }
 
-    fn free_desc(&mut self, idx: u16) -> Result<()> {
+    fn free_desc(&self, idx: u16) -> Result<()> {
         for desc_res in self.queue.desc_iter(idx) {
             let (desc_idx, mut desc) = desc_res?;
-            self.num_used -= 1;
+            *self.num_used.borrow_mut() -= 1;
             if desc.flags & DESC_F_NEXT == 0 {
-                desc.next = self.free_head;
+                desc.next = *self.free_head.borrow();
                 desc.flags |= DESC_F_NEXT;
                 self.queue.set_desc(desc_idx, &desc)?;
             }
         }
-        self.free_head = idx;
+        *self.free_head.borrow_mut() = idx;
         Ok(())
     }
 }
 
-impl<'a> QueueServer for DefaultQueueServer<'a> {
-    fn add_to_queue(&mut self, inputs: &[&Region], outputs: &[&Region]) -> Result<()> {
+impl QueueServer for DefaultQueueServer {
+    fn add_to_queue(&self, inputs: &[&Region], outputs: &[&Region]) -> Result<()> {
         if inputs.is_empty() && outputs.is_empty() {
             return Err(Error::ServerError("inputs and outputs are both empty!".to_string()));
         }
-        if inputs.len() + outputs.len() + self.num_used as usize > self.queue.get_queue_size() as usize {
+        if inputs.len() + outputs.len() + *self.num_used.borrow() as usize > self.queue.get_queue_size() as usize {
             return Err(Error::ServerError("inputs and outputs are too big!".to_string()));
         }
 
-        let head = self.free_head;
-        let mut last = self.free_head;
-        let mut desc_iter = self.queue.desc_iter(self.free_head);
+        let head = *self.free_head.borrow();
+        let mut last = *self.free_head.borrow();
+        let mut desc_iter = self.queue.desc_iter(*self.free_head.borrow());
         for input in inputs.iter() {
             let (_, mut desc) = desc_iter.next().unwrap()?;
             desc.addr = input.info.base;
             desc.len = input.info.size as u32;
             desc.flags = 0;
             desc.flags |= DESC_F_NEXT;
-            self.queue.set_desc(self.free_head, &desc)?;
-            last = self.free_head;
-            self.free_head = desc.next;
+            self.queue.set_desc(*self.free_head.borrow(), &desc)?;
+            last = *self.free_head.borrow();
+            *self.free_head.borrow_mut() = desc.next;
         }
         for output in outputs.iter() {
             let (_, mut desc) = desc_iter.next().unwrap()?;
@@ -474,9 +482,9 @@ impl<'a> QueueServer for DefaultQueueServer<'a> {
             desc.len = output.info.size as u32;
             desc.flags = 0;
             desc.flags |= DESC_F_NEXT | DESC_F_WRITE;
-            self.queue.set_desc(self.free_head, &desc)?;
-            last = self.free_head;
-            self.free_head = desc.next;
+            self.queue.set_desc(*self.free_head.borrow(), &desc)?;
+            last = *self.free_head.borrow();
+            *self.free_head.borrow_mut() = desc.next;
         }
         {
             let desc = &mut self.queue.get_desc(last)?;
@@ -484,35 +492,41 @@ impl<'a> QueueServer for DefaultQueueServer<'a> {
             self.queue.set_desc(last, desc)?;
         }
 
-        self.num_used += (inputs.len() + outputs.len()) as u16;
+        *self.num_used.borrow_mut() += (inputs.len() + outputs.len()) as u16;
         let mut avail_idx = self.queue.get_avail_idx();
         self.queue.set_avail_desc(avail_idx.0, head)?;
         avail_idx += Wrapping(1);
         self.queue.set_avail_idx(avail_idx.0);
 
-        // self.queue.notify_client()
-        Ok(())
+        self.queue.notify_client()
     }
 
     fn has_used(&self) -> bool {
-        self.queue.get_ready() && (self.last_used_idx != self.queue.get_used_idx().0)
+        self.queue.get_ready() && (*self.last_used_idx.borrow() != self.queue.get_used_idx().0)
     }
 
     fn num_available_desc(&self) -> usize {
-        self.queue.get_queue_size() - self.num_used as usize
+        self.queue.get_queue_size() - *self.num_used.borrow() as usize
     }
 
-    fn pop_used(&mut self) -> Result<Option<RingUsedMetaElem>> {
+    fn pop_used(&self) -> Option<(RingUsedMetaElem, DescIter)> {
         if !self.has_used() {
-            return Ok(None);
+            return None;
         }
 
-        let last_used = self.last_used_idx % self.queue.get_queue_size() as u16;
+        let last_used = *self.last_used_idx.borrow() % self.queue.get_queue_size() as u16;
         let used_elem = self.queue.get_used_elem(last_used);
-        self.free_desc(used_elem.id as u16)?;
-        self.last_used_idx = self.queue.get_used_idx().0;
 
-        Ok(Some(used_elem))
+        Some((used_elem, self.queue.desc_iter(used_elem.id as u16)))
+    }
+
+    fn free_used(&self, used:&RingUsedMetaElem) -> Result<()> {
+        if !self.has_used() {
+            return Err(Error::InvalidUsed("there's no used, free_used() shouldn't be called!".to_string()));
+        }
+        self.free_desc(used.id as u16)?;
+        *self.last_used_idx.borrow_mut() = self.queue.get_used_idx().0;
+        Ok(())
     }
 }
 
@@ -526,7 +540,7 @@ pub struct RingMeta<T: ?Sized> {
 fn get_desc_test() {
     const QUEUE_SIZE: usize = 2;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue = Arc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -549,7 +563,7 @@ fn get_desc_test() {
     queue.set_avail_addr(avail_mem.info.base);
     queue.set_used_addr(used_mem.info.base);
 
-    let mut server = DefaultQueueServer::new(&queue);
+    let server = DefaultQueueServer::new(&queue);
     server.init().unwrap();
     queue.set_desc(0, &DescMeta {
         addr: 0xa5a5,
@@ -572,7 +586,7 @@ fn get_desc_test() {
 fn avail_iter_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let mut avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -618,7 +632,7 @@ fn avail_iter_test() {
 fn add_to_queue_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue =  Arc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -641,7 +655,7 @@ fn add_to_queue_test() {
     queue.set_avail_addr(avail_mem.info.base);
     queue.set_used_addr(used_mem.info.base);
 
-    let mut server = DefaultQueueServer::new(&queue);
+    let server = DefaultQueueServer::new(&queue);
     server.init().unwrap();
     for i in 0..(queue.get_queue_size() - 1) {
         let desc = queue.get_desc(i as u16).unwrap();
