@@ -5,17 +5,18 @@ use crate::memory::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
 use super::irq::IrqSignal;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 struct TestQueueClient<'a> {
     memory: Arc<Region>,
-    irq: Arc<IrqSignal<'a>>,
+    irq: Rc<IrqSignal<'a>>,
 }
 
 impl<'a> TestQueueClient<'a> {
-    fn new(memory: &Arc<Region>, irq: &Arc<IrqSignal<'a>>) -> TestQueueClient<'a> {
+    fn new(memory: &Arc<Region>, irq: &Rc<IrqSignal<'a>>) -> TestQueueClient<'a> {
         TestQueueClient {
             memory: Arc::clone(memory),
-            irq: Arc::clone(irq),
+            irq: Rc::clone(irq),
         }
     }
 }
@@ -87,11 +88,11 @@ impl Deref for TestQueueServer {
 fn queue_basic_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let irq = Arc::new(IrqSignal::new(1));
+    let irq = Rc::new(IrqSignal::new(1));
     irq.set_enable(0).unwrap();
     let client = TestQueueClient::new(&memory, &irq);
 
-    let queue = Arc::new({
+    let queue = Rc::new({
         let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
         q.bind_client(client);
         q
@@ -115,14 +116,14 @@ fn queue_basic_test() {
     queue.set_used_addr(used_mem.info.base);
 
 
-    let server = Arc::new(TestQueueServer(DefaultQueueServer::new(&queue)));
+    let server = Rc::new(TestQueueServer(DefaultQueueServer::new(&queue)));
     server.init().unwrap();
 
-    let irq_cnt = Arc::new(RefCell::new(0));
+    let irq_cnt = Rc::new(RefCell::new(0));
 
     irq.bind_handler(0, {
-        let server_handle = Arc::clone(&server);
-        let mut _cnt = Arc::clone(&irq_cnt);
+        let server_handle = Rc::clone(&server);
+        let mut _cnt = Rc::clone(&irq_cnt);
         move || {
             server_handle.irq_handler(memory.deref());
             *_cnt.deref().borrow_mut() += 1;

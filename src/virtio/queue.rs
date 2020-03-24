@@ -1,11 +1,12 @@
 use crate::memory::{Region, GHEAP, Heap, SizedAccess, U16Access};
-use std::sync::Arc;
 use std::{mem, result};
 use std::ops::Deref;
 use std::cmp::min;
 use std::num::Wrapping;
 use std::marker::{PhantomData, Sized};
 use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 pub const DESC_F_NEXT: u16 = 0x1;
 pub const DESC_F_WRITE: u16 = 0x2;
@@ -408,16 +409,16 @@ pub trait QueueClient {
 }
 
 pub struct DefaultQueueServer {
-    queue: Arc<Queue>,
+    queue: Rc<Queue>,
     num_used: RefCell<u16>,
     free_head: RefCell<u16>,
     last_used_idx: RefCell<u16>,
 }
 
 impl DefaultQueueServer {
-    pub fn new(queue: &Arc<Queue>) -> DefaultQueueServer {
+    pub fn new(queue: &Rc<Queue>) -> DefaultQueueServer {
         DefaultQueueServer {
-            queue:Arc::clone(queue),
+            queue:Rc::clone(queue),
             num_used: RefCell::new(0),
             free_head: RefCell::new(0),
             last_used_idx: RefCell::new(0),
@@ -540,7 +541,7 @@ pub struct RingMeta<T: ?Sized> {
 fn get_desc_test() {
     const QUEUE_SIZE: usize = 2;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let queue = Arc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
+    let queue = Rc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -632,7 +633,7 @@ fn avail_iter_test() {
 fn add_to_queue_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let queue =  Arc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
+    let queue =  Rc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false }));
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {

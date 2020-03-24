@@ -1,10 +1,11 @@
 use crate::memory::Region;
-use std::sync::Arc;
 use super::queue::{Queue,QueueSetting};
+use std::rc::Rc;
+use std::sync::Arc;
 
 pub struct Device{
     memory:Arc<Region>,
-    queues:Vec<Arc<Queue>>,
+    queues:Vec<Rc<Queue>>,
     device_id:u32,
     vendor_id:u32,
     device_features:u32,
@@ -25,7 +26,7 @@ impl Device {
             device_features
         };
         for &s in queue_settings {
-            device.queues.push(Arc::new(Queue::new(memory, s)))
+            device.queues.push(Rc::new(Queue::new(memory, s)))
         }
         device
     }
