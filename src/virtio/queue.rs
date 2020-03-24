@@ -69,7 +69,7 @@ impl RingMetaHeader {
 type RingAvailMetaElem = u16;
 
 #[derive(Copy, Clone)]
-struct RingUsedMetaElem {
+pub struct RingUsedMetaElem {
     id: u32,
     len: u32,
 }
@@ -136,12 +136,27 @@ impl Queue {
         Ok(self.desc_addr + (idx as usize * mem::size_of::<DescMeta>()) as u64)
     }
 
-    fn avail_elem_addr(&self, idx: u16) -> u64 {
-        self.avail_addr + mem::size_of::<RingMetaHeader>() as u64 + (idx as usize % self.get_queue_size()) as u64 * mem::size_of::<RingAvailMetaElem>() as u64
+    fn desc_table_size(&self) -> usize {
+        mem::size_of::<DescMeta>() * self.get_queue_size()
     }
 
-    pub fn desc_iter<'a>(&'a self, idx: u16) -> DescIter<'a> {
-        DescIter::new(self, idx, PhantomData)
+    fn avail_ring_size(&self) -> usize {
+        mem::size_of::<RingAvailMetaElem>() * self.get_queue_size()
+    }
+
+    fn used_ring_size(&self) -> usize {
+        mem::size_of::<RingUsedMetaElem>() * self.get_queue_size()
+    }
+
+    fn check_range(&self, base: u64, size: u64) -> bool {
+        !(base < self.memory.info.base ||
+            base >= self.memory.info.base + self.memory.info.size ||
+            base + size < self.memory.info.base ||
+            base + size >= self.memory.info.base + self.memory.info.size)
+    }
+
+    fn avail_elem_addr(&self, idx: u16) -> u64 {
+        self.avail_addr + mem::size_of::<RingMetaHeader>() as u64 + (idx as usize % self.get_queue_size()) as u64 * mem::size_of::<RingAvailMetaElem>() as u64
     }
 
     pub fn set_desc(&self, idx: u16, desc: &DescMeta) -> Result<()> {
@@ -154,23 +169,54 @@ impl Queue {
         Ok(desc)
     }
 
-    fn check_range(&self, base: u64, size: u64) -> bool {
-        !(base < self.memory.info.base ||
-            base >= self.memory.info.base + self.memory.info.size ||
-            base + size < self.memory.info.base ||
-            base + size >= self.memory.info.base + self.memory.info.size)
+    pub fn get_avail_idx(&self) -> Wrapping<u16> {
+        Wrapping(U16Access::read(self.memory.deref(), self.avail_addr + 2))
     }
 
-    fn desc_table_size(&self) -> usize {
-        mem::size_of::<DescMeta>() * self.get_queue_size()
+    pub fn set_avail_idx(&self, idx: u16) {
+        U16Access::write(self.memory.deref(), self.avail_addr + 2, idx)
     }
 
-    fn avail_ring_size(&self) -> usize {
-        mem::size_of::<RingAvailMetaElem>() * self.get_queue_size()
+    pub fn set_avail_desc(&self, avail_idx: u16, desc_idx: u16) -> Result<()> {
+        self.check_idx(desc_idx)?;
+        U16Access::write(self.memory.deref(), self.avail_elem_addr(avail_idx), desc_idx);
+        Ok(())
     }
 
-    fn used_ring_size(&self) -> usize {
-        mem::size_of::<RingUsedMetaElem>() * self.get_queue_size()
+    pub fn get_used_idx(&self) -> Wrapping<u16> {
+        Wrapping(U16Access::read(self.memory.deref(), self.used_addr + 2))
+    }
+
+    fn set_used_idx(&self, idx: u16) {
+        U16Access::write(self.memory.deref(), self.used_addr + 2, idx)
+    }
+
+    fn used_elem_addr(&self, idx: u16) -> u64 {
+        self.used_addr + mem::size_of::<RingMetaHeader>() as u64 + (idx as usize % self.get_queue_size()) as u64 * mem::size_of::<RingUsedMetaElem>() as u64
+    }
+
+    pub fn get_used_elem(&self, used_idx: u16) -> RingUsedMetaElem {
+        let mut elem = RingUsedMetaElem::empty();
+        SizedAccess::read(self.memory.deref(), self.used_elem_addr(used_idx), &mut elem);
+        elem
+    }
+
+    fn set_used_elem(&self, used_idx: u16, elem: &RingUsedMetaElem) -> Result<()> {
+        self.check_idx(elem.id as u16)?;
+        SizedAccess::write(self.memory.deref(), self.used_elem_addr(used_idx), elem);
+        Ok(())
+    }
+
+    pub fn set_used(&self, desc_idx: u16, len: u32) -> Result<()> {
+        let mut used_idx = self.get_used_idx();
+        let used_elem = RingUsedMetaElem {
+            id: desc_idx as u32,
+            len,
+        };
+        self.set_used_elem(used_idx.0, &used_elem)?;
+        used_idx += Wrapping(1);
+        self.set_used_idx(used_idx.0);
+        Ok(())
     }
 
     pub fn check_init(&self) -> Result<()> {
@@ -189,19 +235,8 @@ impl Queue {
         Ok(())
     }
 
-
-    pub fn get_avail_idx(&self) -> Wrapping<u16> {
-        Wrapping(U16Access::read(self.memory.deref(), self.avail_addr + 2))
-    }
-
-    pub fn set_avail_idx(&self, idx: u16) {
-        U16Access::write(self.memory.deref(), self.avail_addr + 2, idx)
-    }
-
-    pub fn set_avail_desc(&self, avail_idx: u16, desc_idx: u16) -> Result<()> {
-        self.check_idx(desc_idx)?;
-        U16Access::write(self.memory.deref(), self.avail_elem_addr(avail_idx), desc_idx);
-        Ok(())
+    pub fn desc_iter<'a>(&'a self, idx: u16) -> DescIter<'a> {
+        DescIter::new(self, idx, PhantomData)
     }
 
     pub fn avail_iter<'a>(&'a self) -> AvailIter<'a> {
@@ -253,25 +288,25 @@ impl<'a> Iterator for AvailIter<'a> {
 pub struct DescIter<'a> {
     queue: &'a Queue,
     ttl: u16,
-    head:u16,
+    head: u16,
     idx: u16,
     last: bool,
     marker: PhantomData<&'a Queue>,
 }
 
-impl <'a> DescIter<'a> {
-    fn new(queue:&'a Queue, head:u16, marker:PhantomData<&'a Queue>) -> DescIter<'a> {
-        DescIter{
+impl<'a> DescIter<'a> {
+    fn new(queue: &'a Queue, head: u16, marker: PhantomData<&'a Queue>) -> DescIter<'a> {
+        DescIter {
             queue,
-            ttl:1,
+            ttl: 1,
             head,
             idx: head,
-            last:false,
+            last: false,
             marker,
         }
     }
 
-    fn has_next(&self, meta:&DescMeta) -> bool {
+    fn has_next(&self, meta: &DescMeta) -> bool {
         meta.flags & DESC_F_NEXT == DESC_F_NEXT
     }
 
@@ -281,10 +316,10 @@ impl <'a> DescIter<'a> {
 }
 
 impl<'a> Iterator for DescIter<'a> {
-    type Item = Result<DescMeta>;
+    type Item = Result<(u16, DescMeta)>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.last {
-            return None
+            return None;
         }
         match self.queue.get_desc(self.idx) {
             Ok(meta) => {
@@ -292,10 +327,11 @@ impl<'a> Iterator for DescIter<'a> {
                     self.last = true;
                     Some(Err(Error::InvalidDesc(format!("infinity descriptor chain start from {}!", self.head))))
                 } else {
+                    let cur_idx = self.idx;
                     self.ttl += 1;
                     self.idx = meta.next;
                     self.last = !self.has_next(&meta);
-                    Some(Ok(meta))
+                    Some(Ok((cur_idx, meta)))
                 }
             }
             Err(e) => Some(Err(e))
@@ -305,12 +341,16 @@ impl<'a> Iterator for DescIter<'a> {
 
 pub trait QueueServer {
     fn add_to_queue(&mut self, inputs: &[&Region], outputs: &[&Region]) -> Result<u16>;
+    fn has_used(&self) -> bool;
+    fn num_available_desc(&self) -> usize;
+    fn pop_used(&mut self) -> Result<Option<RingUsedMetaElem>>;
 }
 
 pub struct DefaultQueueServer<'a> {
     queue: &'a Queue,
     num_used: u16,
     free_head: u16,
+    last_used_idx: u16,
 }
 
 impl<'a> DefaultQueueServer<'a> {
@@ -319,17 +359,35 @@ impl<'a> DefaultQueueServer<'a> {
             queue,
             num_used: 0,
             free_head: 0,
+            last_used_idx: 0,
         }
     }
     fn init(&mut self) -> Result<()> {
         self.queue.check_init()?;
         let mut descs = vec![DescMeta::empty(); self.queue.get_queue_size()];
         for i in 0..(descs.len() - 1) {
+            descs[i].flags |= DESC_F_NEXT;
             descs[i].next = i as u16 + 1;
         }
+        descs.last_mut().unwrap().flags |= DESC_F_NEXT;
+        descs.last_mut().unwrap().next = 0;
         for (i, desc) in descs.iter().enumerate() {
             self.queue.set_desc(i as u16, desc)?;
         }
+        Ok(())
+    }
+
+    fn free_desc(&mut self, idx: u16) -> Result<()> {
+        for desc_res in self.queue.desc_iter(idx) {
+            let (desc_idx, mut desc) = desc_res?;
+            self.num_used -= 1;
+            if desc.flags & DESC_F_NEXT == 0 {
+                desc.next = self.free_head;
+                desc.flags |= DESC_F_NEXT;
+                self.queue.set_desc(desc_idx, &desc)?;
+            }
+        }
+        self.free_head = idx;
         Ok(())
     }
 }
@@ -343,26 +401,26 @@ impl<'a> QueueServer for DefaultQueueServer<'a> {
             return Err(Error::ServerError("inputs and outputs are too big!".to_string()));
         }
 
-        // allocate descriptors from free list
         let head = self.free_head;
         let mut last = self.free_head;
+        let mut desc_iter = self.queue.desc_iter(self.free_head);
         for input in inputs.iter() {
-            let desc = &mut self.queue.get_desc(self.free_head)?;
+            let (_, mut desc) = desc_iter.next().unwrap()?;
             desc.addr = input.info.base;
             desc.len = input.info.size as u32;
             desc.flags = 0;
             desc.flags |= DESC_F_NEXT;
-            self.queue.set_desc(self.free_head, desc)?;
+            self.queue.set_desc(self.free_head, &desc)?;
             last = self.free_head;
             self.free_head = desc.next;
         }
         for output in outputs.iter() {
-            let desc = &mut self.queue.get_desc(self.free_head)?;
+            let (_, mut desc) = desc_iter.next().unwrap()?;
             desc.addr = output.info.base;
             desc.len = output.info.size as u32;
             desc.flags = 0;
             desc.flags |= DESC_F_NEXT | DESC_F_WRITE;
-            self.queue.set_desc(self.free_head, desc)?;
+            self.queue.set_desc(self.free_head, &desc)?;
             last = self.free_head;
             self.free_head = desc.next;
         }
@@ -379,6 +437,26 @@ impl<'a> QueueServer for DefaultQueueServer<'a> {
         self.queue.set_avail_idx(avail_idx.0);
 
         Ok(self.free_head)
+    }
+
+    fn has_used(&self) -> bool {
+        self.queue.ready && (self.last_used_idx != self.queue.get_used_idx().0)
+    }
+
+    fn num_available_desc(&self) -> usize {
+        self.queue.get_queue_size() - self.num_used as usize
+    }
+
+    fn pop_used(&mut self) -> Result<Option<RingUsedMetaElem>> {
+        if !self.has_used() {
+            return Ok(None);
+        }
+        let last_used = self.last_used_idx % self.queue.get_queue_size() as u16;
+        let used_elem = self.queue.get_used_elem(last_used);
+        self.free_desc(used_elem.id as u16)?;
+        self.last_used_idx = self.queue.get_used_idx().0;
+
+        Ok(Some(used_elem))
     }
 }
 
@@ -425,7 +503,7 @@ fn get_desc_test() {
     }).unwrap();
     let mut desc_iter = queue.desc_iter(0);
     let desc = desc_iter.next().unwrap().unwrap();
-    assert_eq!(desc, DescMeta {
+    assert_eq!(desc.1, DescMeta {
         addr: 0xa5a5,
         len: 0x5a5a,
         flags: 0,
@@ -528,13 +606,13 @@ fn add_to_queue_test() {
 
     let mut avail_iter = queue.avail_iter();
     let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());
-    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+    assert_eq!(desc_iter.next().unwrap().unwrap().1, DescMeta {
         addr: read_mem.info.base,
         len: read_mem.info.size as u32,
         flags: DESC_F_NEXT,
         next: 1,
     });
-    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+    assert_eq!(desc_iter.next().unwrap().unwrap().1, DescMeta {
         addr: write_mem.info.base,
         len: write_mem.info.size as u32,
         flags: DESC_F_WRITE,
@@ -544,7 +622,7 @@ fn add_to_queue_test() {
     assert!(desc_iter.next().is_none());
 
     let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());
-    assert_eq!(desc_iter.next().unwrap().unwrap(), DescMeta {
+    assert_eq!(desc_iter.next().unwrap().unwrap().1, DescMeta {
         addr: read_mem1.info.base,
         len: read_mem1.info.size as u32,
         flags: DESC_F_NEXT,
@@ -552,10 +630,11 @@ fn add_to_queue_test() {
     });
 
     for (i, rest) in desc_iter.enumerate() {
-        let desc = rest.unwrap();
+        let (desc_idx, desc) = rest.unwrap();
         assert_eq!(desc.len, 6);
         assert_eq!(desc.flags & DESC_F_WRITE, DESC_F_WRITE);
         assert_eq!(desc.next, i as u16 + 4);
+        assert_eq!(desc_idx, i as u16 + 3);
         if desc.flags & DESC_F_NEXT == 0 {
             assert_eq!(i, 2);
         }
