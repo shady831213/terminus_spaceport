@@ -5,7 +5,7 @@ use std::ops::Deref;
 
 pub struct Device{
     memory:Arc<Region>,
-    queues:Vec<Queue>,
+    queues:Vec<Arc<Queue>>,
     device_id:u32,
     vendor_id:u32,
     device_features:u32,
@@ -26,7 +26,7 @@ impl Device {
             device_features
         };
         for &s in queue_settings {
-            device.queues.push(Queue::new(memory, s))
+            device.queues.push(Arc::new(Queue::new(memory, s)))
         }
         device
     }

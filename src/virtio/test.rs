@@ -1,13 +1,25 @@
-use super::queue::{Queue, QueueSetting, DescMeta, RingUsedMetaElem, QueueClient, DESC_F_WRITE, DefaultQueueServer,QueueServer, RingAvailMetaElem, RingMetaHeader,RingMeta};
+use super::queue::{Queue, QueueSetting, DescMeta, RingUsedMetaElem, QueueClient, DESC_F_WRITE, DefaultQueueServer, QueueServer, RingAvailMetaElem, RingMetaHeader, RingMeta};
+use std::sync::{Arc, Mutex};
 use std::mem;
-use std::sync::Arc;
-use crate::memory::{Region, BytesAccess, GHEAP, Heap};
-use std::ops::Deref;
-use super::irq::{IrqSignal,IrqHandler};
+use crate::memory::{Region, BytesAccess, GHEAP, Heap, U32Access};
+use std::ops::{Deref, DerefMut};
+use super::irq::IrqSignal;
+use std::marker::PhantomData;
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 
 struct TestQueueClient<'a> {
     memory: Arc<Region>,
-    irq_signal:&'a IrqSignal
+    irq: RefCell<Box<dyn FnMut() + 'a>>,
+}
+
+impl<'a> TestQueueClient<'a> {
+    fn new<F: FnMut() + 'a>(memory: &Arc<Region>, irq: F) -> TestQueueClient<'a> {
+        TestQueueClient {
+            memory: Arc::clone(memory),
+            irq: RefCell::new(Box::new(irq)),
+        }
+    }
 }
 
 impl<'a> QueueClient for TestQueueClient<'a> {
@@ -15,7 +27,7 @@ impl<'a> QueueClient for TestQueueClient<'a> {
         let writes = queue.desc_iter(desc_head)
             .filter_map(|desc_res| {
                 let (_, desc) = desc_res.unwrap();
-                if desc.flags & DESC_F_WRITE != 0 {
+                if desc.flags & DESC_F_WRITE == 0 {
                     let mut data = vec![0 as u8; desc.len as usize];
                     BytesAccess::read(self.memory.deref(), desc.addr, &mut data);
                     Some(data)
@@ -27,7 +39,7 @@ impl<'a> QueueClient for TestQueueClient<'a> {
         let count = queue.desc_iter(desc_head)
             .filter_map(|desc_res| {
                 let (_, desc) = desc_res.unwrap();
-                if desc.flags & DESC_F_WRITE == 0 {
+                if desc.flags & DESC_F_WRITE != 0 {
                     Some(desc)
                 } else {
                     None
@@ -40,35 +52,59 @@ impl<'a> QueueClient for TestQueueClient<'a> {
             })
             .fold(0, |acc, c| { acc + c });
         queue.set_used(desc_head, count as u32);
-        self.irq_signal.send_irq(0);
+        (&mut *self.irq.borrow_mut())();
         Ok(true)
     }
 }
 
-struct TestQueueServer<'a> {
-    server:DefaultQueueServer<'a>
-}
-
-impl<'a> Deref for TestQueueServer<'a> {
-    type Target = DefaultQueueServer<'a>;
-    fn deref(&self) -> &Self::Target {
-        &self.server
-    }
-}
-
-impl<'a> IrqHandler for TestQueueServer<'a> {
-    fn handle(&mut self) -> super::irq::Result<()> {
-        let result = self.server.pop_used();
-        // println!("{:?}", result);
-        Ok(())
-    }
-}
+// struct TestQueueServer {
+//     server: DefaultQueueServer
+// }
+//
+// impl TestQueueServer {
+//     fn new(queue: &Arc<Queue>) -> TestQueueServer {
+//         TestQueueServer {
+//             server: DefaultQueueServer::new(queue),
+//         }
+//     }
+//
+//     fn get_handler<'a>(&'a self) -> ServerHandler<'a> {
+//         ServerHandler {
+//             server: self,
+//         }
+//     }
+// }
+//
+// impl Deref for TestQueueServer {
+//     type Target = DefaultQueueServer;
+//     fn deref(&self) -> &Self::Target {
+//         &self.server
+//     }
+// }
+//
+// impl DerefMut for TestQueueServer {
+//     fn deref_mut(&mut self) -> &mut Self::Target {
+//         &mut self.server
+//     }
+// }
+//
+// struct ServerHandler<'a> {
+//     server: &'a TestQueueServer,
+// }
+//
+// impl<'a, 'b> IrqHandler<'b> for ServerHandler<'a> {
+//     fn handle(&mut self) -> super::irq::Result<()> {
+//         let result = self.server.pop_used();
+//         println!("{:?}", result);
+//         Ok(())
+//     }
+// }
 
 #[test]
 fn queue_basic_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let mut queue =Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -85,5 +121,24 @@ fn queue_basic_test() {
     queue.set_avail_addr(avail_mem.info.base);
     queue.set_used_addr(used_mem.info.base);
 
-    // let server = TestQueueServer{server:DefaultQueueServer::new}
+
+    let server = Mutex::new(DefaultQueueServer::new(&queue));
+    server.lock().unwrap().init();
+    let irq = IrqSignal::new(1);
+
+    let client = TestQueueClient::new(&memory, || {
+        irq.send_irq(0);
+    });
+
+    irq.bind_handler(0, || {
+        let result = server.lock().unwrap().pop_used();
+        println!("{:?}", result);
+    });
+
+    // queue.bind_client(client);
+
+    let read_mem = heap.alloc(4, 4).unwrap();
+    let write_mem = heap.alloc(4, 4).unwrap();
+    U32Access::write(read_mem.deref(), read_mem.info.base, 0xdeadbeaf);
+    server.lock().unwrap().add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
 }

@@ -70,7 +70,7 @@ impl RingMetaHeader {
 
 pub type RingAvailMetaElem = u16;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct RingUsedMetaElem {
     id: u32,
     len: u32,
@@ -88,7 +88,6 @@ impl RingUsedMetaElem {
 pub struct Queue {
     setting: QueueSetting,
     memory: Arc<Region>,
-    client: Option<Box<dyn QueueClient>>,
     ready: RefCell<bool>,
     queue_size: u16,
     last_avail_idx: RefCell<Wrapping<u16>>,
@@ -104,7 +103,6 @@ impl Queue {
         Queue {
             setting,
             memory: Arc::clone(memory),
-            client: None,
             ready: RefCell::new(false),
             queue_size: max_queue_size,
             last_avail_idx: RefCell::new(Wrapping(0)),
@@ -112,10 +110,6 @@ impl Queue {
             avail_addr: RefCell::new(0),
             used_addr: RefCell::new(0),
         }
-    }
-
-    pub fn bind_client(&mut self, client: impl QueueClient + 'static) {
-        self.client = Some(Box::new(client))
     }
 
     pub fn reset(&mut self) {
@@ -288,19 +282,19 @@ impl Queue {
                        PhantomData)
     }
 
-    pub fn notify_client(&self) -> Result<()> {
-        if let Some(ref client) = self.client {
-            for desc_head in self.avail_iter() {
-                if !client.receive(self, desc_head)? {
-                    return Ok(());
-                }
-                *self.last_avail_idx.borrow_mut() += Wrapping(1);
-            }
-            Ok(())
-        } else {
-            Ok(())
-        }
-    }
+    // pub fn notify_client(&self) -> Result<()> {
+    //     if let Some(ref client) = self.client {
+    //         for desc_head in self.avail_iter() {
+    //             if !client.receive(self, desc_head)? {
+    //                 return Ok(());
+    //             }
+    //             *self.last_avail_idx.borrow_mut() += Wrapping(1);
+    //         }
+    //         Ok(())
+    //     } else {
+    //         Ok(())
+    //     }
+    // }
 }
 
 pub struct AvailIter<'a> {
@@ -496,7 +490,8 @@ impl<'a> QueueServer for DefaultQueueServer<'a> {
         avail_idx += Wrapping(1);
         self.queue.set_avail_idx(avail_idx.0);
 
-        self.queue.notify_client()
+        // self.queue.notify_client()
+        Ok(())
     }
 
     fn has_used(&self) -> bool {
