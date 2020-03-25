@@ -3,25 +3,24 @@ use std::sync::Arc;
 use std::mem;
 use crate::memory::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
-use super::irq::IrqSignal;
+use super::irq::{IrqVec, IrqVecSender};
 use std::cell::RefCell;
-use std::rc::Rc;
 
-struct TestQueueClient<'a> {
+struct TestQueueClient {
     memory: Arc<Region>,
-    irq: Rc<IrqSignal<'a>>,
+    irq_sender:IrqVecSender,
 }
 
-impl<'a> TestQueueClient<'a> {
-    fn new(memory: &Arc<Region>, irq: &Rc<IrqSignal<'a>>) -> TestQueueClient<'a> {
+impl TestQueueClient {
+    fn new(memory: &Arc<Region>, irq_sender:IrqVecSender) -> TestQueueClient {
         TestQueueClient {
             memory: Arc::clone(memory),
-            irq: Rc::clone(irq),
+            irq_sender
         }
     }
 }
 
-impl<'a> QueueClient for TestQueueClient<'a> {
+impl QueueClient for TestQueueClient {
     fn receive(&self, queue: &Queue, desc_head: u16) -> super::queue::Result<bool> {
         let writes = queue.desc_iter(desc_head)
             .filter_map(|desc_res| {
@@ -52,7 +51,7 @@ impl<'a> QueueClient for TestQueueClient<'a> {
             })
             .fold(0, |acc, c| { acc + c });
         queue.set_used(desc_head, count as u32)?;
-        self.irq.send_irq(0).unwrap();
+        self.irq_sender.send(0).unwrap();
         Ok(true)
     }
 }
@@ -60,9 +59,9 @@ impl<'a> QueueClient for TestQueueClient<'a> {
 struct TestQueueServer(DefaultQueueServer);
 
 impl TestQueueServer {
-    fn irq_handler(&self, memory: &Region) {
-        let (used, desc_iter) = self.pop_used().unwrap();
-        for desc_res in desc_iter {
+    fn irq_handler(&self, memory: &Region, queue:&Queue) {
+        let used = self.pop_used(queue).unwrap();
+        for desc_res in queue.desc_iter(used.id as u16) {
             let (idx, desc) = desc_res.unwrap();
             if desc.flags & DESC_F_WRITE == 0 {
                 assert_eq!(U32Access::read(memory, desc.addr), !(0xdeadbeaf as u32))
@@ -71,10 +70,11 @@ impl TestQueueServer {
             }
             println!("desc:{}, data:{:#x}", idx, U32Access::read(memory, desc.addr))
         }
-        self.free_used(&used).unwrap();
+        self.free_used(queue, &used).unwrap();
         assert_eq!(used, RingUsedMetaElem { id: 0, len: 8 })
     }
 }
+
 
 impl Deref for TestQueueServer {
     type Target = DefaultQueueServer;
@@ -88,11 +88,12 @@ impl Deref for TestQueueServer {
 fn queue_basic_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let irq = Rc::new(IrqSignal::new(1));
+    let irq = IrqVec::new(2);
     irq.set_enable(0).unwrap();
-    let client = TestQueueClient::new(&memory, &irq);
+    irq.set_enable(1).unwrap();
+    let client = TestQueueClient::new(&memory, irq.sender());
 
-    let queue = Rc::new({
+    let queue = Arc::new({
         let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
         q.bind_client(client);
         q
@@ -116,16 +117,19 @@ fn queue_basic_test() {
     queue.set_used_addr(used_mem.info.base);
 
 
-    let server = Rc::new(TestQueueServer(DefaultQueueServer::new(&queue)));
-    server.init().unwrap();
+    let server = Arc::new(TestQueueServer(DefaultQueueServer::new()));
+    server.init_queue(&queue).unwrap();
+    // server.bind_irq(irq.binder(), &memory, &queue);
 
-    let irq_cnt = Rc::new(RefCell::new(0));
+    let irq_cnt = Arc::new(RefCell::new(0));
 
-    irq.bind_handler(0, {
-        let server_handle = Rc::clone(&server);
-        let mut _cnt = Rc::clone(&irq_cnt);
+    irq.binder().bind(0, {
+        let server_ref = Arc::clone(&server);
+        let mem_ref = Arc::clone(&memory);
+        let queue_ref = Arc::clone(&queue);
+        let mut _cnt = Arc::clone(&irq_cnt);
         move || {
-            server_handle.irq_handler(memory.deref());
+            server_ref.irq_handler(mem_ref.deref(), queue_ref.deref());
             *_cnt.deref().borrow_mut() += 1;
         }
     }).unwrap();
@@ -134,9 +138,9 @@ fn queue_basic_test() {
     let read_mem = heap.alloc(4, 4).unwrap();
     let write_mem = heap.alloc(4, 4).unwrap();
     U32Access::write(write_mem.deref(), write_mem.info.base, 0xdeadbeaf);
-    server.add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.add_to_queue(&queue,vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
     assert_eq!(*irq_cnt.deref().borrow(), 4);
 }

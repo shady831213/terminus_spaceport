@@ -1,5 +1,8 @@
 use std::cell::RefCell;
 use std::result;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::ops::Deref;
 
 #[derive(Debug)]
 pub enum Error {
@@ -9,19 +12,19 @@ pub enum Error {
 
 pub type Result<T> = result::Result<T, Error>;
 
-pub struct IrqBit<'a> {
+pub struct IrqBit {
     pub enable: bool,
-    handler: Option<Box<dyn FnMut() + 'a>>,
+    handler: Option<Box<dyn FnMut() + 'static>>,
 }
 
-impl<'a> IrqBit<'a> {
-    fn new() -> IrqBit<'a> {
+impl IrqBit {
+    fn new() -> IrqBit {
         IrqBit {
             enable: false,
             handler: None,
         }
     }
-    fn bind_handler<F: FnMut() + 'a>(&mut self, handler: F) {
+    fn bind_handler<F: FnMut() + 'static>(&mut self, handler: F) {
         self.handler = Some(Box::new(handler))
     }
 
@@ -38,12 +41,12 @@ impl<'a> IrqBit<'a> {
     }
 }
 
-pub struct IrqSignal<'a>(RefCell<Vec<IrqBit<'a>>>);
+struct IrqVecInner(RefCell<Vec<IrqBit>>);
 
 
-impl<'a> IrqSignal<'a> {
-    pub fn new(len: usize) -> IrqSignal<'a> {
-        let irq = IrqSignal(RefCell::new(vec![]));
+impl IrqVecInner {
+    pub fn new(len: usize) -> IrqVecInner {
+        let irq = IrqVecInner(RefCell::new(vec![]));
         for _ in 0..len {
             irq.0.borrow_mut().push(IrqBit::new())
         }
@@ -57,37 +60,73 @@ impl<'a> IrqSignal<'a> {
             Ok(())
         }
     }
+}
 
+pub struct IrqVec {
+    vec: Arc<IrqVecInner>
+}
+
+impl IrqVec {
+    pub fn new(len: usize) -> IrqVec {
+        IrqVec {
+            vec: Arc::new(IrqVecInner::new(len))
+        }
+    }
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow()[irq_num].enable)
+        self.vec.check_irq_num(irq_num)?;
+        Ok(self.vec.0.borrow()[irq_num].enable)
     }
 
     pub fn set_enable(&self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow_mut()[irq_num].enable = true)
+        self.vec.check_irq_num(irq_num)?;
+        Ok(self.vec.0.borrow_mut()[irq_num].enable = true)
     }
 
     pub fn clr_enable(&self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0.borrow_mut()[irq_num].enable = false)
+        self.vec.check_irq_num(irq_num)?;
+        Ok(self.vec.0.borrow_mut()[irq_num].enable = false)
     }
 
-    pub fn bind_handler<F: FnMut() + 'a>(&self, irq_num: usize, handler: F) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        if self.0.borrow()[irq_num].handler.is_some() {
-            Err(Error::ExistedHandler(irq_num))
-        } else {
-            Ok(self.0.borrow_mut()[irq_num].bind_handler(handler))
+    pub fn sender(&self) -> IrqVecSender {
+        IrqVecSender {
+            irq_vec: Arc::clone(&self.vec),
         }
     }
 
-    pub fn send_irq(&self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        if let Some(res) = self.0.borrow_mut()[irq_num].send_irq() {
+    pub fn binder(&self) -> IrqVecBinder {
+        IrqVecBinder {
+            irq_vec: Arc::clone(&self.vec),
+        }
+    }
+}
+
+
+pub struct IrqVecSender {
+    irq_vec: Arc<IrqVecInner>,
+}
+
+impl IrqVecSender {
+    pub fn send(&self, irq_num: usize) -> Result<()> {
+        self.irq_vec.check_irq_num(irq_num)?;
+        if let Some(res) = self.irq_vec.0.borrow_mut()[irq_num].send_irq() {
             res
         } else {
             Err(Error::UnknownIRQ(irq_num))
+        }
+    }
+}
+
+pub struct IrqVecBinder {
+    irq_vec: Arc<IrqVecInner>,
+}
+
+impl IrqVecBinder {
+    pub fn bind<F: FnMut() + 'static>(&self, irq_num: usize, handler: F) -> Result<()> {
+        self.irq_vec.check_irq_num(irq_num)?;
+        if self.irq_vec.0.borrow()[irq_num].handler.is_some() {
+            Err(Error::ExistedHandler(irq_num))
+        } else {
+            Ok(self.irq_vec.0.borrow_mut()[irq_num].bind_handler(handler))
         }
     }
 }
