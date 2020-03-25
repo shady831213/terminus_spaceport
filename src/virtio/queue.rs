@@ -17,6 +17,7 @@ pub enum Error {
     InvalidUsed(String),
     InvalidInit(String),
     ServerError(String),
+    ClientError(String),
     MemError(String),
 }
 
@@ -31,7 +32,6 @@ pub type Result<T> = result::Result<T, Error>;
 #[derive(Copy, Clone)]
 pub struct QueueSetting {
     pub max_queue_size: u16,
-    pub manual_recv: bool,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -540,7 +540,7 @@ pub struct RingMeta<T: ?Sized> {
 fn get_desc_test() {
     const QUEUE_SIZE: usize = 2;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -586,7 +586,7 @@ fn get_desc_test() {
 fn avail_iter_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 });
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let mut avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
@@ -632,7 +632,7 @@ fn avail_iter_test() {
 fn add_to_queue_test() {
     const QUEUE_SIZE: usize = 10;
     let memory = GHEAP.alloc(1024, 16).unwrap();
-    let queue =  Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+    let queue =  Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16});
     let heap = Heap::new(&memory);
     let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
     let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {

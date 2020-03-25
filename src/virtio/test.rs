@@ -4,18 +4,19 @@ use std::mem;
 use crate::memory::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
 use super::irq::{IrqVec, IrqVecSender};
+use super::device::Device;
 use std::cell::RefCell;
 
 struct TestQueueClient {
     memory: Arc<Region>,
-    irq_sender:IrqVecSender,
+    irq_sender: IrqVecSender,
 }
 
 impl TestQueueClient {
-    fn new(memory: &Arc<Region>, irq_sender:IrqVecSender) -> TestQueueClient {
+    fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestQueueClient {
         TestQueueClient {
             memory: Arc::clone(memory),
-            irq_sender
+            irq_sender,
         }
     }
 }
@@ -59,7 +60,7 @@ impl QueueClient for TestQueueClient {
 struct TestQueueServer(DefaultQueueServer);
 
 impl TestQueueServer {
-    fn irq_handler(&self, memory: &Region, queue:&Queue) {
+    fn irq_handler(&self, memory: &Region, queue: &Queue) {
         let used = self.pop_used(queue).unwrap();
         for desc_res in queue.desc_iter(used.id as u16) {
             let (idx, desc) = desc_res.unwrap();
@@ -74,7 +75,6 @@ impl TestQueueServer {
         assert_eq!(used, RingUsedMetaElem { id: 0, len: 8 })
     }
 }
-
 
 impl Deref for TestQueueServer {
     type Target = DefaultQueueServer;
@@ -94,7 +94,7 @@ fn queue_basic_test() {
     let client = TestQueueClient::new(&memory, irq.sender(0).unwrap());
 
     let queue = Arc::new({
-        let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
+        let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 });
         q.bind_client(client);
         q
     });
@@ -122,13 +122,12 @@ fn queue_basic_test() {
     // server.bind_irq(irq.binder(), &memory, &queue);
 
     let irq_cnt = Arc::new(RefCell::new(0));
-
     irq.binder().bind(0, {
         let server_ref = Arc::clone(&server);
         let mem_ref = Arc::clone(&memory);
         let queue_ref = Arc::clone(&queue);
         let mut _cnt = Arc::clone(&irq_cnt);
-        move || {
+        move |_| {
             server_ref.irq_handler(mem_ref.deref(), queue_ref.deref());
             *_cnt.deref().borrow_mut() += 1;
         }
@@ -140,7 +139,116 @@ fn queue_basic_test() {
     U32Access::write(write_mem.deref(), write_mem.info.base, 0xdeadbeaf);
     server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
     server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(&queue,vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
     server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
     assert_eq!(*irq_cnt.deref().borrow(), 4);
 }
+
+struct TestDevice {
+    virtio_device: Device,
+}
+
+impl TestDevice {
+    pub fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestDevice {
+        let mut virtio_device = Device::new(memory,
+                                            irq_sender,
+                                            1,
+                                            0, 0, 0,
+        );
+        virtio_device.get_irq_vec().set_enable(0).unwrap();
+        let input_queue = {
+            let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 1 });
+            let input = TestDeviceInput::new(memory, virtio_device.get_irq_vec().sender(0).unwrap());
+            queue.bind_client(input);
+            queue
+        };
+        let output_queue = {
+            let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 1 });
+            let output = TestDeviceOutput::new(memory);
+            queue.bind_client(output);
+            queue
+        };
+        virtio_device.add_queue(input_queue);
+        virtio_device.add_queue(output_queue);
+
+        TestDevice {
+            virtio_device,
+        }
+    }
+}
+
+struct TestDeviceInput {
+    memory: Arc<Region>,
+    irq_sender: IrqVecSender,
+}
+
+impl TestDeviceInput {
+    fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestDeviceInput {
+        TestDeviceInput {
+            memory: memory.clone(),
+            irq_sender,
+        }
+    }
+}
+
+impl QueueClient for TestDeviceInput {
+    fn receive(&self, queue: &Queue, desc_head: u16) -> super::queue::Result<bool> {
+        let count = queue.desc_iter(desc_head)
+            .filter_map(|desc_res| {
+                let (_, desc) = desc_res.unwrap();
+                if desc.flags & DESC_F_WRITE == 0 && desc.len >= 4 {
+                    Some(desc)
+                } else {
+                    None
+                }
+            })
+            .map(|desc| {
+                U32Access::write(self.memory.deref(), desc.addr, 0xa5a55a5a);
+                4
+            })
+            .fold(0, |acc, c| { acc + c });
+        if count == 0 {
+            return Err(super::queue::Error::ClientError("no valid buffer!".to_string()));
+        }
+        queue.set_used(desc_head, count as u32)?;
+        self.irq_sender.send().unwrap();
+        Ok(true)
+    }
+}
+
+struct TestDeviceOutput {
+    memory: Arc<Region>,
+}
+
+impl TestDeviceOutput {
+    fn new(memory: &Arc<Region>) -> TestDeviceOutput {
+        TestDeviceOutput {
+            memory: memory.clone(),
+        }
+    }
+}
+
+impl QueueClient for TestDeviceOutput {
+    fn receive(&self, queue: &Queue, desc_head: u16) -> super::queue::Result<bool> {
+        let count = queue.desc_iter(desc_head)
+            .filter_map(|desc_res| {
+                let (_, desc) = desc_res.unwrap();
+                if desc.flags & DESC_F_WRITE == 1 && desc.len == 4 {
+                    Some(desc)
+                } else {
+                    None
+                }
+            })
+            .map(|desc| {
+                println!("get data {:#x}", U32Access::read(self.memory.deref(), desc.addr));
+                4
+            })
+            .fold(0, |acc, c| { acc + c });
+        if count == 0 {
+            return Err(super::queue::Error::ClientError("no valid buffer!".to_string()));
+        }
+        queue.set_used(desc_head, count as u32)?;
+        Ok(true)
+    }
+}
+
