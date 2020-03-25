@@ -8,6 +8,8 @@ pub mod memory;
 
 pub mod space;
 
+pub mod irq;
+
 mod virtio;
 
 mod capi;

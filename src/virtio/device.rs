@@ -1,7 +1,7 @@
 use crate::memory::Region;
 use super::queue::Queue;
 use std::sync::Arc;
-use super::irq::{IrqVec, IrqVecSender};
+use crate::irq::{IrqVec, IrqVecSender};
 
 pub struct Device {
     memory: Arc<Region>,

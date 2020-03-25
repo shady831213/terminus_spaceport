@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::mem;
 use crate::memory::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
-use super::irq::{IrqVec, IrqVecSender};
+use crate::irq::{IrqVec, IrqVecSender};
 use super::device::Device;
 use std::cell::RefCell;
 
