@@ -142,6 +142,7 @@ fn queue_basic_test() {
 
 struct TestDevice {
     virtio_device: Device,
+    config: TestDeviceConfig,
 }
 
 impl TestDevice {
@@ -154,19 +155,32 @@ impl TestDevice {
         virtio_device.get_irq_vec().set_enable(0).unwrap();
         let input_queue = {
             let input = TestDeviceInput::new(memory, virtio_device.get_irq_vec().sender(0).unwrap());
-            Queue::new(&memory, QueueSetting { max_queue_size: 1 },input)
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
         let output_queue = {
             let output = TestDeviceOutput::new(memory);
-            Queue::new(&memory, QueueSetting { max_queue_size: 1 },output)
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
 
+        virtio_device.get_irq_vec().set_enable(1).unwrap();
+        let config = TestDeviceConfig {
+            config1: 0,
+            config2: 0,
+            irq_sender: virtio_device.get_irq_vec().sender(1).unwrap(),
+        };
         TestDevice {
             virtio_device,
+            config,
         }
     }
+}
+
+struct TestDeviceConfig {
+    config1: u64,
+    config2: u64,
+    irq_sender: IrqVecSender,
 }
 
 struct TestDeviceInput {
