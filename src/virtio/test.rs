@@ -115,8 +115,6 @@ fn queue_basic_test() {
 
     let server = Arc::new(TestQueueServer(DefaultQueueServer::new()));
     server.init_queue(&queue).unwrap();
-    // server.bind_irq(irq.binder(), &memory, &queue);
-
     let irq_cnt = Arc::new(RefCell::new(0));
     irq.binder().bind(0, {
         let server_ref = Arc::clone(&server);
@@ -128,7 +126,6 @@ fn queue_basic_test() {
             *_cnt.deref().borrow_mut() += 1;
         }
     }).unwrap();
-
 
     let read_mem = heap.alloc(4, 4).unwrap();
     let write_mem = heap.alloc(4, 4).unwrap();
@@ -186,6 +183,7 @@ struct TestDeviceConfig {
 struct TestDeviceInput {
     memory: Arc<Region>,
     irq_sender: IrqVecSender,
+    loop_cnt: RefCell<usize>,
 }
 
 impl TestDeviceInput {
@@ -193,12 +191,17 @@ impl TestDeviceInput {
         TestDeviceInput {
             memory: memory.clone(),
             irq_sender,
+            loop_cnt: RefCell::new(0),
         }
     }
 }
 
 impl QueueClient for TestDeviceInput {
     fn receive(&self, queue: &Queue, desc_head: u16) -> super::queue::Result<bool> {
+        if *self.loop_cnt.borrow() >= 4 {
+            println!("input 4 times done!");
+            return Ok(false);
+        }
         let count = queue.desc_iter(desc_head)
             .filter_map(|desc_res| {
                 let (_, desc) = desc_res.unwrap();
@@ -258,3 +261,49 @@ impl QueueClient for TestDeviceOutput {
     }
 }
 
+
+struct TestDeviceDriver {
+    input_queue:Arc<Queue>,
+    output_queue:Arc<Queue>,
+    input_server:Arc<DefaultQueueServer>,
+    output_server:DefaultQueueServer,
+}
+
+impl TestDeviceDriver {
+    fn new(memory: &Arc<Region>) -> TestDeviceDriver {
+        let irq_vec = IrqVec::new(1);
+        irq_vec.set_enable(0).unwrap();
+        let device = TestDevice::new(memory, irq_vec.sender(0).unwrap());
+        let input_queue = device.virtio_device.get_queue(0);
+        let input_server = Arc::new(DefaultQueueServer::new());
+        input_server.init_queue(input_queue.deref()).unwrap();
+        irq_vec.binder().bind(0, {
+            let irq_vec_ref = device.virtio_device.get_irq_vec();
+            let input_server_ref = input_server.clone();
+            let input_queue_ref = input_queue.clone();
+            let mem_ref = memory.clone();
+            move |irq_status| {
+                let used = input_server_ref.pop_used(input_queue_ref.deref()).unwrap();
+                for desc_res in input_queue_ref.desc_iter(used.id as u16) {
+                    let (idx, desc) = desc_res.unwrap();
+                    println!("desc:{}, data:{:#x}", idx, U32Access::read(mem_ref.deref(), desc.addr))
+                }
+                input_server_ref.free_used(input_queue_ref.deref(), &used).unwrap();
+                assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
+                assert!(irq_vec_ref.pending(0).unwrap());
+                irq_vec_ref.clr_pending(0).unwrap();
+            }
+        }).unwrap();
+
+        let output_queue = device.virtio_device.get_queue(1);
+        let output_server = DefaultQueueServer::new();
+        output_server.init_queue(output_queue.deref()).unwrap();
+
+        TestDeviceDriver {
+            input_queue,
+            output_queue,
+            input_server,
+            output_server
+        }
+    }
+}

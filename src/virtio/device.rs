@@ -6,7 +6,7 @@ use crate::irq::{IrqVec, IrqVecSender};
 pub struct Device {
     memory: Arc<Region>,
     queues: Vec<Arc<Queue>>,
-    irq_vec: IrqVec,
+    irq_vec: Arc<IrqVec>,
     device_id: u32,
     vendor_id: u32,
     device_features: u32,
@@ -30,7 +30,7 @@ impl Device {
         Device {
             memory: Arc::clone(memory),
             queues: vec![],
-            irq_vec: irq_vec,
+            irq_vec: Arc::new(irq_vec),
             device_id,
             vendor_id,
             device_features,
@@ -45,8 +45,7 @@ impl Device {
         self.queues[id].clone()
     }
 
-    pub fn get_irq_vec(&self) -> &IrqVec {
-        &self.irq_vec
+    pub fn get_irq_vec(&self) -> Arc<IrqVec> {
+        self.irq_vec.clone()
     }
-
 }
