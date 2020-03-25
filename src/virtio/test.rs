@@ -93,11 +93,7 @@ fn queue_basic_test() {
     irq.set_enable(1).unwrap();
     let client = TestQueueClient::new(&memory, irq.sender(0).unwrap());
 
-    let queue = Arc::new({
-        let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 });
-        q.bind_client(client);
-        q
-    });
+    let queue = Arc::new(Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 }, client));
 
 
     let heap = Heap::new(&memory);
@@ -157,16 +153,12 @@ impl TestDevice {
         );
         virtio_device.get_irq_vec().set_enable(0).unwrap();
         let input_queue = {
-            let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 1 });
             let input = TestDeviceInput::new(memory, virtio_device.get_irq_vec().sender(0).unwrap());
-            queue.bind_client(input);
-            queue
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 },input)
         };
         let output_queue = {
-            let mut queue = Queue::new(&memory, QueueSetting { max_queue_size: 1 });
             let output = TestDeviceOutput::new(memory);
-            queue.bind_client(output);
-            queue
+            Queue::new(&memory, QueueSetting { max_queue_size: 1 },output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
