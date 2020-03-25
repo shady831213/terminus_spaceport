@@ -87,10 +87,12 @@ impl IrqVec {
         Ok(self.vec.0.borrow_mut()[irq_num].enable = false)
     }
 
-    pub fn sender(&self) -> IrqVecSender {
-        IrqVecSender {
+    pub fn sender(&self, irq_num: usize) -> Result<IrqVecSender> {
+        self.vec.check_irq_num(irq_num)?;
+        Ok(IrqVecSender {
+            irq_num,
             irq_vec: Arc::clone(&self.vec),
-        }
+        })
     }
 
     pub fn binder(&self) -> IrqVecBinder {
@@ -102,16 +104,16 @@ impl IrqVec {
 
 
 pub struct IrqVecSender {
+    irq_num: usize,
     irq_vec: Arc<IrqVecInner>,
 }
 
 impl IrqVecSender {
-    pub fn send(&self, irq_num: usize) -> Result<()> {
-        self.irq_vec.check_irq_num(irq_num)?;
-        if let Some(res) = self.irq_vec.0.borrow_mut()[irq_num].send_irq() {
+    pub fn send(&self) -> Result<()> {
+        if let Some(res) = self.irq_vec.0.borrow_mut()[self.irq_num].send_irq() {
             res
         } else {
-            Err(Error::UnknownIRQ(irq_num))
+            Err(Error::UnknownIRQ(self.irq_num))
         }
     }
 }

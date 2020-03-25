@@ -51,7 +51,7 @@ impl QueueClient for TestQueueClient {
             })
             .fold(0, |acc, c| { acc + c });
         queue.set_used(desc_head, count as u32)?;
-        self.irq_sender.send(0).unwrap();
+        self.irq_sender.send().unwrap();
         Ok(true)
     }
 }
@@ -91,7 +91,7 @@ fn queue_basic_test() {
     let irq = IrqVec::new(2);
     irq.set_enable(0).unwrap();
     irq.set_enable(1).unwrap();
-    let client = TestQueueClient::new(&memory, irq.sender());
+    let client = TestQueueClient::new(&memory, irq.sender(0).unwrap());
 
     let queue = Arc::new({
         let mut q = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16, manual_recv: false });
