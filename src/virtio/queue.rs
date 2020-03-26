@@ -386,13 +386,13 @@ impl<'a> Iterator for DescIter<'a> {
 }
 
 pub trait QueueServer {
-    fn init_queue(&self, queue: &Queue) -> Result<()>;
+    fn init_queue(&mut self, queue: &Queue) -> Result<()>;
     fn add_to_queue(&self, queue: &Queue, inputs: &[&Region], outputs: &[&Region]) -> Result<u16>;
     fn notify_queue(&self, queue: &Queue, head: u16) -> Result<()>;
     fn has_used(&self, queue: &Queue) -> bool;
     fn num_available_desc(&self, queue: &Queue) -> usize;
     fn pop_used(&self, queue: &Queue) -> Option<RingUsedMetaElem>;
-    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc:bool) -> Result<()>;
+    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc: bool) -> Result<()>;
 }
 
 
@@ -401,14 +401,22 @@ pub trait QueueClient {
 }
 
 pub struct DefaultQueueServer {
+    heap: Arc<Heap>,
+    desc_region: Option<Arc<Region>>,
+    avail_region: Option<Arc<Region>>,
+    used_region: Option<Arc<Region>>,
     num_used: RefCell<u16>,
     free_head: RefCell<u16>,
     last_used_idx: RefCell<u16>,
 }
 
 impl DefaultQueueServer {
-    pub fn new() -> DefaultQueueServer {
+    pub fn new(heap: &Arc<Heap>) -> DefaultQueueServer {
         DefaultQueueServer {
+            heap: heap.clone(),
+            desc_region: None,
+            avail_region: None,
+            used_region: None,
             num_used: RefCell::new(0),
             free_head: RefCell::new(0),
             last_used_idx: RefCell::new(0),
@@ -431,7 +439,16 @@ impl DefaultQueueServer {
 }
 
 impl QueueServer for DefaultQueueServer {
-    fn init_queue(&self, queue: &Queue) -> Result<()> {
+    fn init_queue(&mut self, queue: &Queue) -> Result<()> {
+        let desc_region = self.heap.alloc(queue.desc_table_size() as u64, 8)?;
+        let avail_region = self.heap.alloc(queue.avail_ring_size() as u64, 2)?;
+        let used_region = self.heap.alloc(queue.used_ring_size() as u64, 4)?;
+        queue.set_desc_addr(desc_region.info.base);
+        queue.set_avail_addr(avail_region.info.base);
+        queue.set_used_addr(used_region.info.base);
+        self.desc_region = Some(desc_region);
+        self.avail_region = Some(avail_region);
+        self.used_region = Some(used_region);
         queue.check_init()?;
         let mut descs = vec![DescMeta::empty(); queue.get_queue_size()];
         for i in 0..(descs.len() - 1) {
@@ -516,7 +533,7 @@ impl QueueServer for DefaultQueueServer {
         Some(used_elem)
     }
 
-    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc:bool) -> Result<()> {
+    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc: bool) -> Result<()> {
         if !self.has_used(queue) {
             return Err(Error::ServerError("there's no used, free_used() shouldn't be called!".to_string()));
         }
@@ -550,28 +567,7 @@ fn get_desc_test() {
     let memory = GHEAP.alloc(1024, 16).unwrap();
     let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 }, DummyClient());
     let heap = Heap::new(&memory);
-    let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
-    let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
-        info: RingMetaHeader {
-            flags: 0,
-            idx: 0,
-        },
-        ring: [0 as RingAvailMetaElem; QUEUE_SIZE],
-    };
-    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
-    let used_ring: RingMeta<[RingUsedMetaElem; QUEUE_SIZE]> = RingMeta {
-        info: RingMetaHeader {
-            flags: 0,
-            idx: 0,
-        },
-        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
-    };
-    let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
-    queue.set_desc_addr(desc_mem.info.base);
-    queue.set_avail_addr(avail_mem.info.base);
-    queue.set_used_addr(used_mem.info.base);
-
-    let server = DefaultQueueServer::new();
+    let mut server = DefaultQueueServer::new(&heap);
     server.init_queue(&queue).unwrap();
     queue.set_desc(0, &DescMeta {
         addr: 0xa5a5,
@@ -642,28 +638,7 @@ fn add_to_queue_test() {
     let memory = GHEAP.alloc(1024, 16).unwrap();
     let queue = Queue::new(&memory, QueueSetting { max_queue_size: QUEUE_SIZE as u16 }, DummyClient());
     let heap = Heap::new(&memory);
-    let desc_mem = heap.alloc(mem::size_of::<DescMeta>() as u64 * queue.get_queue_size() as u64, 4).unwrap();
-    let avail_ring: RingMeta<[RingAvailMetaElem; QUEUE_SIZE]> = RingMeta {
-        info: RingMetaHeader {
-            flags: 0,
-            idx: 0,
-        },
-        ring: [0 as RingAvailMetaElem; QUEUE_SIZE],
-    };
-    let avail_mem = heap.alloc(mem::size_of_val(&avail_ring) as u64, 2).unwrap();
-    let used_ring: RingMeta<[RingUsedMetaElem; QUEUE_SIZE]> = RingMeta {
-        info: RingMetaHeader {
-            flags: 0,
-            idx: 0,
-        },
-        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
-    };
-    let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
-    queue.set_desc_addr(desc_mem.info.base);
-    queue.set_avail_addr(avail_mem.info.base);
-    queue.set_used_addr(used_mem.info.base);
-
-    let server = DefaultQueueServer::new();
+    let mut server = DefaultQueueServer::new(&heap);
     server.init_queue(&queue).unwrap();
     for i in 0..(queue.get_queue_size() - 1) {
         let desc = queue.get_desc(i as u16).unwrap();
@@ -674,7 +649,7 @@ fn add_to_queue_test() {
     let write_mem = heap.alloc(6, 1).unwrap();
 
     let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.notify_queue(&queue,head).unwrap();
+    server.notify_queue(&queue, head).unwrap();
 
     let read_mem1 = heap.alloc(7, 1).unwrap();
     let write_mem1 = heap.alloc(6, 1).unwrap();
@@ -682,7 +657,7 @@ fn add_to_queue_test() {
     let write_mem3 = heap.alloc(6, 1).unwrap();
 
     let head = server.add_to_queue(&queue, vec![read_mem1.deref()].as_slice(), vec![write_mem1.deref(), write_mem2.deref(), write_mem3.deref()].as_slice()).unwrap();
-    server.notify_queue(&queue,head).unwrap();
+    server.notify_queue(&queue, head).unwrap();
 
     let mut avail_iter = queue.avail_iter();
     let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());

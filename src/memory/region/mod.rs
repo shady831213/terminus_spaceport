@@ -498,6 +498,9 @@ impl Heap {
             Err("oom!".to_string())
         }
     }
+    pub fn get_region(&self) -> &Arc<Region> {
+        &self.memory
+    }
 }
 
 impl Free for Heap {
