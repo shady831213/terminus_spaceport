@@ -136,15 +136,15 @@ impl Queue {
         Ok(self.get_desc_addr() + (idx as usize * mem::size_of::<DescMeta>()) as u64)
     }
 
-    fn desc_table_size(&self) -> usize {
+    pub fn desc_table_size(&self) -> usize {
         mem::size_of::<DescMeta>() * self.get_queue_size()
     }
 
-    fn avail_ring_size(&self) -> usize {
+    pub fn avail_ring_size(&self) -> usize {
         mem::size_of::<RingAvailMetaElem>() * self.get_queue_size()
     }
 
-    fn used_ring_size(&self) -> usize {
+    pub fn used_ring_size(&self) -> usize {
         mem::size_of::<RingUsedMetaElem>() * self.get_queue_size()
     }
 
@@ -357,7 +357,7 @@ impl<'a> DescIter<'a> {
     }
 
     fn dead_loop(&self) -> bool {
-        self.ttl as usize >= self.queue.get_queue_size()
+        self.ttl as usize > self.queue.get_queue_size()
     }
 }
 
@@ -387,11 +387,12 @@ impl<'a> Iterator for DescIter<'a> {
 
 pub trait QueueServer {
     fn init_queue(&self, queue: &Queue) -> Result<()>;
-    fn add_to_queue(&self, queue: &Queue, inputs: &[&Region], outputs: &[&Region]) -> Result<()>;
+    fn add_to_queue(&self, queue: &Queue, inputs: &[&Region], outputs: &[&Region]) -> Result<u16>;
+    fn notify_queue(&self, queue: &Queue, head: u16) -> Result<()>;
     fn has_used(&self, queue: &Queue) -> bool;
     fn num_available_desc(&self, queue: &Queue) -> usize;
     fn pop_used(&self, queue: &Queue) -> Option<RingUsedMetaElem>;
-    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem) -> Result<()>;
+    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc:bool) -> Result<()>;
 }
 
 
@@ -446,7 +447,7 @@ impl QueueServer for DefaultQueueServer {
         Ok(())
     }
 
-    fn add_to_queue(&self, queue: &Queue, inputs: &[&Region], outputs: &[&Region]) -> Result<()> {
+    fn add_to_queue(&self, queue: &Queue, inputs: &[&Region], outputs: &[&Region]) -> Result<u16> {
         if inputs.is_empty() && outputs.is_empty() {
             return Err(Error::ServerError("inputs and outputs are both empty!".to_string()));
         }
@@ -482,8 +483,12 @@ impl QueueServer for DefaultQueueServer {
             desc.flags = desc.flags & !DESC_F_NEXT;
             queue.set_desc(last, desc)?;
         }
-
         *self.num_used.borrow_mut() += (inputs.len() + outputs.len()) as u16;
+
+        Ok(head)
+    }
+
+    fn notify_queue(&self, queue: &Queue, head: u16) -> Result<()> {
         let mut avail_idx = queue.get_avail_idx();
         queue.set_avail_desc(avail_idx.0, head)?;
         avail_idx += Wrapping(1);
@@ -511,11 +516,13 @@ impl QueueServer for DefaultQueueServer {
         Some(used_elem)
     }
 
-    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem) -> Result<()> {
+    fn free_used(&self, queue: &Queue, used: &RingUsedMetaElem, keep_desc:bool) -> Result<()> {
         if !self.has_used(queue) {
             return Err(Error::ServerError("there's no used, free_used() shouldn't be called!".to_string()));
         }
-        self.free_desc(queue, used.id as u16)?;
+        if !keep_desc {
+            self.free_desc(queue, used.id as u16)?;
+        }
         *self.last_used_idx.borrow_mut() = queue.get_used_idx().0;
         Ok(())
     }
@@ -523,6 +530,7 @@ impl QueueServer for DefaultQueueServer {
 
 #[cfg(test)]
 struct DummyClient();
+
 #[cfg(test)]
 impl QueueClient for DummyClient {
     fn receive(&self, _: &Queue, _: u16) -> Result<bool> {
@@ -665,14 +673,16 @@ fn add_to_queue_test() {
     let read_mem = heap.alloc(7, 1).unwrap();
     let write_mem = heap.alloc(6, 1).unwrap();
 
-    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue,head).unwrap();
 
     let read_mem1 = heap.alloc(7, 1).unwrap();
     let write_mem1 = heap.alloc(6, 1).unwrap();
     let write_mem2 = heap.alloc(6, 1).unwrap();
     let write_mem3 = heap.alloc(6, 1).unwrap();
 
-    server.add_to_queue(&queue, vec![read_mem1.deref()].as_slice(), vec![write_mem1.deref(), write_mem2.deref(), write_mem3.deref()].as_slice()).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem1.deref()].as_slice(), vec![write_mem1.deref(), write_mem2.deref(), write_mem3.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue,head).unwrap();
 
     let mut avail_iter = queue.avail_iter();
     let mut desc_iter = queue.desc_iter(avail_iter.next().unwrap());

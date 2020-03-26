@@ -6,6 +6,7 @@ use std::ops::Deref;
 use crate::irq::{IrqVec, IrqVecSender};
 use super::device::Device;
 use std::cell::RefCell;
+use std::cmp::min;
 
 struct TestQueueClient {
     memory: Arc<Region>,
@@ -71,7 +72,7 @@ impl TestQueueServer {
             }
             println!("desc:{}, data:{:#x}", idx, U32Access::read(memory, desc.addr))
         }
-        self.free_used(queue, &used).unwrap();
+        self.free_used(queue, &used, false).unwrap();
         assert_eq!(used, RingUsedMetaElem { id: 0, len: 8 })
     }
 }
@@ -130,10 +131,14 @@ fn queue_basic_test() {
     let read_mem = heap.alloc(4, 4).unwrap();
     let write_mem = heap.alloc(4, 4).unwrap();
     U32Access::write(write_mem.deref(), write_mem.info.base, 0xdeadbeaf);
-    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
-    server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue, head).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue, head).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue, head).unwrap();
+    let head = server.add_to_queue(&queue, vec![read_mem.deref()].as_slice(), vec![write_mem.deref()].as_slice()).unwrap();
+    server.notify_queue(&queue, head).unwrap();
     assert_eq!(*irq_cnt.deref().borrow(), 4);
 }
 
@@ -146,7 +151,7 @@ impl TestDevice {
     pub fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestDevice {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
-                                            1,
+                                            2,
                                             0, 0, 0,
         );
         virtio_device.get_irq_vec().set_enable(0).unwrap();
@@ -198,13 +203,13 @@ impl TestDeviceInput {
 
 impl QueueClient for TestDeviceInput {
     fn receive(&self, queue: &Queue, desc_head: u16) -> super::queue::Result<bool> {
-        if *self.loop_cnt.borrow() >= 4 {
+        if *self.loop_cnt.borrow() > 3 {
             println!("input 4 times done!");
             return Ok(false);
         }
         let count = queue.desc_iter(desc_head)
             .filter_map(|desc_res| {
-                let (_, desc) = desc_res.unwrap();
+                let (desc_idx, desc) = desc_res.unwrap();
                 if desc.flags & DESC_F_WRITE == 0 && desc.len >= 4 {
                     Some(desc)
                 } else {
@@ -221,6 +226,7 @@ impl QueueClient for TestDeviceInput {
         }
         queue.set_used(desc_head, count as u32)?;
         self.irq_sender.send().unwrap();
+        *self.loop_cnt.borrow_mut() += 1;
         Ok(true)
     }
 }
@@ -263,47 +269,96 @@ impl QueueClient for TestDeviceOutput {
 
 
 struct TestDeviceDriver {
-    input_queue:Arc<Queue>,
-    output_queue:Arc<Queue>,
-    input_server:Arc<DefaultQueueServer>,
-    output_server:DefaultQueueServer,
+    memory: Arc<Region>,
+    irq_vec: IrqVec,
+    input_head: u16,
+    output_head: u16,
+    input_server: DefaultQueueServer,
+    output_server: DefaultQueueServer,
+    device: TestDevice,
 }
 
 impl TestDeviceDriver {
-    fn new(memory: &Arc<Region>) -> TestDeviceDriver {
+    fn new(memory: &Arc<Region>,
+           region: &Arc<Region>) -> TestDeviceDriver {
         let irq_vec = IrqVec::new(1);
         irq_vec.set_enable(0).unwrap();
         let device = TestDevice::new(memory, irq_vec.sender(0).unwrap());
+        let heap = Heap::new(region);
         let input_queue = device.virtio_device.get_queue(0);
-        let input_server = Arc::new(DefaultQueueServer::new());
+        let input_buffer = heap.alloc(4, 4).unwrap();
+        let input_desc_mem = heap.alloc(input_queue.desc_table_size() as u64, 8).unwrap();
+        let input_avail_mem = heap.alloc(input_queue.avail_ring_size() as u64, 2).unwrap();
+        let input_used_mem = heap.alloc(input_queue.used_ring_size() as u64, 4).unwrap();
+        input_queue.set_desc_addr(input_desc_mem.info.base);
+        input_queue.set_avail_addr(input_avail_mem.info.base);
+        input_queue.set_used_addr(input_used_mem.info.base);
+        let input_server = DefaultQueueServer::new();
         input_server.init_queue(input_queue.deref()).unwrap();
+
+        let input_head = input_server.add_to_queue(&input_queue, &vec![input_buffer.deref()].as_slice(), &vec![].as_slice()).unwrap();
         irq_vec.binder().bind(0, {
-            let irq_vec_ref = device.virtio_device.get_irq_vec();
-            let input_server_ref = input_server.clone();
-            let input_queue_ref = input_queue.clone();
-            let mem_ref = memory.clone();
             move |irq_status| {
-                let used = input_server_ref.pop_used(input_queue_ref.deref()).unwrap();
-                for desc_res in input_queue_ref.desc_iter(used.id as u16) {
-                    let (idx, desc) = desc_res.unwrap();
-                    println!("desc:{}, data:{:#x}", idx, U32Access::read(mem_ref.deref(), desc.addr))
-                }
-                input_server_ref.free_used(input_queue_ref.deref(), &used).unwrap();
-                assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
-                assert!(irq_vec_ref.pending(0).unwrap());
-                irq_vec_ref.clr_pending(0).unwrap();
+                irq_status.set_pending(0).unwrap();
             }
         }).unwrap();
+        input_server.notify_queue(&input_queue, input_head).unwrap();
 
         let output_queue = device.virtio_device.get_queue(1);
+        let output_buffer = heap.alloc(4, 4).unwrap();
+        let output_desc_mem = heap.alloc(output_queue.desc_table_size() as u64, 8).unwrap();
+        let output_avail_mem = heap.alloc(output_queue.avail_ring_size() as u64, 2).unwrap();
+        let output_used_mem = heap.alloc(output_queue.used_ring_size() as u64, 4).unwrap();
+        output_queue.set_desc_addr(output_desc_mem.info.base);
+        output_queue.set_avail_addr(output_avail_mem.info.base);
+        output_queue.set_used_addr(output_used_mem.info.base);
         let output_server = DefaultQueueServer::new();
         output_server.init_queue(output_queue.deref()).unwrap();
+        let output_head = output_server.add_to_queue(&output_queue, &vec![].as_slice(), &vec![output_buffer.deref()].as_slice()).unwrap();
 
         TestDeviceDriver {
-            input_queue,
-            output_queue,
+            memory: memory.clone(),
+            irq_vec,
+            input_head,
+            output_head,
             input_server,
-            output_server
+            output_server,
+            device,
         }
     }
+
+    fn read(&self) -> super::queue::Result<Vec<u8>> {
+        if self.irq_vec.pending(0).unwrap() && self.device.virtio_device.get_irq_vec().pending(0).unwrap() {
+            let input_queue = self.device.virtio_device.get_queue(0);
+            let used = self.input_server.pop_used(input_queue.deref()).unwrap();
+            let mut output = vec![];
+            input_queue.desc_iter(used.id as u16).for_each(|desc_res| {
+                let (idx, desc) = desc_res.unwrap();
+                let mut desc_buf: Vec<u8> = vec![0; desc.len as usize];
+                BytesAccess::read(self.memory.deref(), desc.addr, &mut desc_buf);
+                output.append(&mut desc_buf);
+            });
+            assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
+            self.input_server.free_used(input_queue.deref(),&used, true)?;
+            self.irq_vec.clr_pending(0).unwrap();
+            self.device.virtio_device.get_irq_vec().clr_pending(0).unwrap();
+            self.input_server.notify_queue(&input_queue, self.input_head)?;
+            return Ok(output);
+        }
+        Ok(vec![])
+    }
+}
+
+#[test]
+fn simple_device_test() {
+    let memory = GHEAP.alloc(1024, 16).unwrap();
+    let heap = Heap::new(&memory);
+    let device_region = heap.alloc(512, 8).unwrap();
+    let device = TestDeviceDriver::new(&memory, &device_region);
+    for _ in 0..4 {
+        let mut data_array = [0 as u8;4];
+        data_array.copy_from_slice(device.read().unwrap().as_slice());
+        assert_eq!(u32::from_le_bytes(data_array), 0xa5a55a5a);
+    }
+    assert_eq!(device.read().unwrap(), vec![]);
 }
