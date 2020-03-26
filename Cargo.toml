@@ -20,6 +20,8 @@ crate-type = ["rlib","staticlib", "dylib"]
 [dependencies]
 lazy_static = "1.4"
 terminus-spaceport-proc-macros = { path = "proc_macros" }
+termios = "*"
+libc = "0.2.68"
 
 [dev-dependencies]
 rand = "0.7.3"
