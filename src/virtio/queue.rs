@@ -6,6 +6,7 @@ use std::num::Wrapping;
 use std::marker::{PhantomData, Sized};
 use std::cell::RefCell;
 use std::sync::Arc;
+use std::f32::consts::E;
 
 pub const DESC_F_NEXT: u16 = 0x1;
 pub const DESC_F_WRITE: u16 = 0x2;
@@ -18,6 +19,7 @@ pub enum Error {
     InvalidInit(String),
     ServerError(String),
     ClientError(String),
+    NotReady,
     MemError(String),
 }
 
@@ -244,6 +246,7 @@ impl Queue {
     }
 
     pub fn set_used(&self, desc_idx: u16, len: u32) -> Result<()> {
+        self.check_ready()?;
         let mut used_idx = self.get_used_idx();
         let used_elem = RingUsedMetaElem {
             id: desc_idx as u32,
@@ -271,6 +274,14 @@ impl Queue {
         Ok(())
     }
 
+    fn check_ready(&self) -> Result<()> {
+        if !self.get_ready() {
+            Err(Error::NotReady)
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn desc_iter(&self, idx: u16) -> DescIter {
         DescIter::new(self, idx, PhantomData)
     }
@@ -285,6 +296,7 @@ impl Queue {
     }
 
     pub fn notify_client(&self) -> Result<()> {
+        self.check_ready()?;
         for desc_head in self.avail_iter() {
             if !self.client.receive(self, desc_head)? {
                 return Ok(());
