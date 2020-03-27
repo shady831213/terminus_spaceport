@@ -35,7 +35,7 @@ path = "benchs/bench.rs"
 
 [[example]]
 name = "console_hello"
-path = "benchs/console_hello.rs"
+path = "experiments/console_hello.rs"
 
 [features]
 memprof = []

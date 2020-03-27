@@ -8,6 +8,7 @@ use std::io::Write;
 use std::io::Read;
 use terminus_spaceport::devices::{TERM, term_exit};
 
+//all exit fn must be idempotent
 fn exit(code: i32) {
     println!("exit {}!", code);
     term_exit();
