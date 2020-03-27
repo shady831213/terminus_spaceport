@@ -1,67 +1,53 @@
 extern crate termios;
+extern crate libc;
 
 use std::{io, fs};
-use std::io::{Read, BufReader};
-use std::io::Write;
+use std::io::{Stdout, Stdin, Stderr};
 use termios::{Termios, TCSANOW, ECHO, ICANON, tcsetattr};
-use std::os::unix::io::AsRawFd;
-use libc;
-use self::termios::ECHONL;
+use std::os::unix::io::{AsRawFd, RawFd};
 
-#[test]
-#[ignore]
-fn console_hello() {
-    let f_tty;
-    let fd = unsafe {
-        if libc::isatty(libc::STDIN_FILENO) == 1 {
-            f_tty = None;
-            libc::STDIN_FILENO
-        } else {
-            let f = fs::File::open("/dev/tty").unwrap();
-            let fd = f.as_raw_fd();
-            f_tty = Some(BufReader::new(f));
-            fd
-        }
-    };
+pub struct Term(Termios, libc::c_int, RawFd);
 
-    let old_fflag = unsafe { libc::fcntl(fd, libc::F_GETFL) };
-    //use async or mpsc is better
-    unsafe { libc::fcntl(fd, libc::F_SETFL, libc::O_NONBLOCK) };
-    let mut termios = termios::Termios::from_fd(fd).unwrap();
-    let original = termios;
-    termios.c_lflag &= !(ICANON | ECHO);
-    termios::tcsetattr(fd, termios::TCSANOW, &termios).unwrap();
-    // let read_rv = if let Some(mut f) = f_tty {
-    //     f
-    // } else {
-    //     io::stdin().read_line(&mut rv)
-    // };
-
-
-    let mut reader = io::stdin();
-    let stdout = io::stdout();
-    stdout.lock().write("Hello World!\n".as_bytes()).unwrap();
-    stdout.lock().flush().unwrap();
-
-    loop {
-        let read_len = 10;
-        let mut read_buffer = vec![0 as u8; read_len];
-        match reader.read(&mut read_buffer) {
-            Ok(len) => {
-                stdout.lock().write(format!("got {}!\n", len).as_bytes()).unwrap();
-                stdout.lock().write(&read_buffer).unwrap();
-                stdout.lock().flush().unwrap();
+impl Term {
+    fn new() -> io::Result<Term> {
+        let stdin_fd = unsafe {
+            if libc::isatty(libc::STDIN_FILENO) == 1 {
+                libc::STDIN_FILENO
+            } else {
+                let f = fs::File::open("/dev/tty")?;
+                f.as_raw_fd()
             }
-            Err(e) => {
-                println!("{:?}", e);
-                break;
-            }
-        }
+        };
+        let origin_fflag = unsafe { libc::fcntl(stdin_fd, libc::F_GETFL) };
+        unsafe { libc::fcntl(stdin_fd, libc::F_SETFL, libc::O_NONBLOCK) };
+        let mut termios = Termios::from_fd(stdin_fd)?;
+        let origin_termios = termios;
+        termios.c_lflag &= !(ICANON | ECHO);
+        tcsetattr(stdin_fd, TCSANOW, &termios)?;
+        println!("create term!");
+        Ok(Term(
+            origin_termios,
+            origin_fflag,
+            stdin_fd,
+        ))
     }
-
-
-    stdout.lock().write("done!\n".as_bytes()).unwrap();
-    stdout.lock().flush().unwrap();
-    termios::tcsetattr(fd, termios::TCSANOW, &original).unwrap();
-    unsafe { libc::fcntl(fd, libc::F_SETFL, old_fflag) };
+    pub fn stdin(&self) -> Stdin {
+        io::stdin()
+    }
+    pub fn stdout(&self) -> Stdout {
+        io::stdout()
+    }
+    pub fn stderr(&self) -> Stderr {
+        io::stderr()
+    }
 }
+
+lazy_static!(
+    pub static ref TERM: Term = Term::new().unwrap();
+);
+
+pub fn term_exit() {
+    tcsetattr(TERM.2, TCSANOW, &TERM.0).unwrap();
+    unsafe { libc::fcntl(TERM.2, libc::F_SETFL, TERM.1) };
+}
+

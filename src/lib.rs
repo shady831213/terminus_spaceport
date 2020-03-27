@@ -14,7 +14,7 @@ mod virtio;
 
 mod capi;
 
-mod devices;
+pub mod devices;
 #[cfg(test)]
 mod test;
 

@@ -27,10 +27,15 @@ libc = "0.2.68"
 rand = "0.7.3"
 jemallocator = "0.3"
 jemalloc-sys = {version = "0.3", features = ["stats"]}
+ctrlc = {version = "3.1.4", features = ["termination"]}
 
 [[bench]]
 name = "bench"
 path = "benchs/bench.rs"
+
+[[example]]
+name = "console_hello"
+path = "benchs/console_hello.rs"
 
 [features]
 memprof = []
