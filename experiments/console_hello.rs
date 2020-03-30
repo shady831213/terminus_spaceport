@@ -6,7 +6,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use std::io::Write;
 use std::io::Read;
-use terminus_spaceport::devices::{TERM, term_exit, CTRL_C};
+use terminus_spaceport::devices::{TERM, term_exit};
+use terminus_spaceport::EXIT_CTRL;
 use std::sync::{Once};
 
 struct A();
@@ -32,12 +33,12 @@ fn main() {
     TERM.stdout().lock().write("Hello World!\n".as_bytes()).unwrap();
     TERM.stdout().lock().flush().unwrap();
     'outer: loop {
-        if let Ok(msg) = CTRL_C.poll() {
+        if let Ok(msg) = EXIT_CTRL.poll() {
             println!("{}", msg);
             break;
         }
         loop {
-            if let Ok(msg) = CTRL_C.poll() {
+            if let Ok(msg) = EXIT_CTRL.poll() {
                 println!("{}", msg);
                 break 'outer;
             }
@@ -46,8 +47,7 @@ fn main() {
             match TERM.stdin().lock().read(&mut read_buffer) {
                 Ok(len) => {
                     if read_buffer.contains(&('q' as u8)) {
-                        TERM.stdout().lock().write("quit!\n".as_bytes()).unwrap();
-                        break 'outer;
+                        EXIT_CTRL.exit("quit!").unwrap();
                     }
                     TERM.stdout().lock().write(format!("got {}!\n", len).as_bytes()).unwrap();
                     TERM.stdout().lock().write(&read_buffer).unwrap();

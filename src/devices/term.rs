@@ -6,8 +6,6 @@ use std::{io, fs};
 use std::io::{Stdout, Stdin, Stderr};
 use termios::{Termios, TCSANOW, ECHO, ICANON, tcsetattr};
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::sync::Mutex;
-use std::sync::mpsc::{Receiver, channel, TryRecvError};
 
 pub struct Term(Termios, libc::c_int, RawFd);
 
@@ -55,49 +53,4 @@ pub fn term_exit() {
 }
 
 
-struct CtrlCInner {
-    receiver: Receiver<String>,
-    received: Option<String>,
-}
 
-impl CtrlCInner {
-    fn new() -> CtrlCInner {
-        let (sender, receiver) = channel();
-        ctrlc::set_handler(move || {
-            sender.send("Catch Ctrl-C!".to_string()).unwrap()
-        }).expect("Error setting Ctrl-C handler");
-        CtrlCInner {
-            receiver,
-            received: None,
-        }
-    }
-
-    fn poll(&mut self) -> Result<String, TryRecvError> {
-        if let Some(ref res) = self.received {
-            Ok(res.clone())
-        } else {
-            let res = self.receiver.try_recv()?;
-            self.received = Some(res.clone());
-            Ok(res)
-        }
-    }
-}
-
-pub struct CtrlC {
-    inner: Mutex<CtrlCInner>,
-}
-
-impl CtrlC {
-    fn new() -> CtrlC {
-        CtrlC{
-            inner:Mutex::new(CtrlCInner::new())
-        }
-    }
-    pub fn poll(&self) -> Result<String, TryRecvError> {
-        self.inner.lock().unwrap().poll()
-    }
-}
-
-lazy_static!(
-    pub static ref CTRL_C:CtrlC = CtrlC::new();
-);

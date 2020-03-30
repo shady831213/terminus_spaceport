@@ -1,3 +1,3 @@
-mod virtual_term;
+mod term;
 
-pub use virtual_term::{TERM, term_exit, CTRL_C};
+pub use term::{TERM, term_exit};
