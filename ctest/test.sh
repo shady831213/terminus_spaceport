@@ -9,7 +9,7 @@ echo "Test test_raw_allocator Done!"
 echo "--------------------------"
 echo "--------------------------"
 echo "Test test_region..."
-gcc -g -o test test_region.c -I ../target/release -L../target/release -Wl,-Bstatic -lterminus_spaceport  -Wl,-Bdynamic -lpthread -ldl -lm
+gcc -g -o test test_region.c -I ../target/release -L../target/release -Wl,-Bstatic -lterminus_spaceport  -Wl,-Bdynamic -lpthread -ldl -lm -lrt
 
 ./test
 rm test

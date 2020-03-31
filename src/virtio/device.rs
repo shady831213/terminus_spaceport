@@ -1,4 +1,4 @@
-use crate::memory::Region;
+use crate::memory::region::Region;
 use super::queue::Queue;
 use std::sync::Arc;
 use crate::irq::{IrqVec, IrqVecSender};

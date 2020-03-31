@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use crate::memory::*;
+use crate::memory::region::Region;
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;

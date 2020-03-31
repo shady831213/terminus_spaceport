@@ -3,6 +3,7 @@ use std::ffi::{c_void, CStr};
 use std::os::raw::c_char;
 use crate::space::{Space, SPACE_TABLE};
 use std::sync::Arc;
+use crate::memory::region::*;
 use crate::memory::*;
 use std::ops::Deref;
 
@@ -137,42 +138,42 @@ extern "C" fn __ts_map_region_partial(region: &Box<Arc<Region>>, base: u64, offs
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u8(region: &Box<Arc<Region>>, addr: u64, data: u8) {
-    U8Access::write(region.deref().deref(), addr, data)
+    U8Access::write(region.deref().deref(), addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u16(region: &Box<Arc<Region>>, addr: u64, data: u16) {
-    U16Access::write(region.deref().deref(), addr, data)
+    U16Access::write(region.deref().deref(), addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u32(region: &Box<Arc<Region>>, addr: u64, data: u32) {
-    U32Access::write(region.deref().deref(), addr, data)
+    U32Access::write(region.deref().deref(), addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u64(region: &Box<Arc<Region>>, addr: u64, data: u64) {
-    U64Access::write(region.deref().deref(), addr, data)
+    U64Access::write(region.deref().deref(), addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u8(region: &Box<Arc<Region>>, addr: u64) -> u8 {
-    U8Access::read(region.deref().deref(), addr)
+    U8Access::read(region.deref().deref(), addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u16(region: &Box<Arc<Region>>, addr: u64) -> u16 {
-    U16Access::read(region.deref().deref(), addr)
+    U16Access::read(region.deref().deref(), addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u32(region: &Box<Arc<Region>>, addr: u64) -> u32 {
-    U32Access::read(region.deref().deref(), addr)
+    U32Access::read(region.deref().deref(), addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u64(region: &Box<Arc<Region>>, addr: u64) -> u64 {
-    U64Access::read(region.deref().deref(), addr)
+    U64Access::read(region.deref().deref(), addr).unwrap()
 }
 
 fn to_c_ptr(obj: Arc<Region>) -> *const Box<Arc<Region>> {

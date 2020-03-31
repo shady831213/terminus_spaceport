@@ -1,5 +1,7 @@
 use super::*;
-use crate::memory::*;
+use crate::memory::region::*;
+use crate::memory::MemInfo;
+use crate::memory::region;
 use crate::space::*;
 use std::sync::Mutex;
 use std::sync::mpsc::{channel, Sender, Receiver};
@@ -57,7 +59,7 @@ fn space_query() {
         thread::spawn(|| {
             let r = SPACE_TABLE.get_space("space_query").get_region("region2").expect("not get region2");
             for i in 0..10 {
-                U8Access::write(r.deref(), r.info.base + 8, i);
+                U8Access::write(r.deref(), r.info.base + 8, i).unwrap();
             }
         })
     };
@@ -80,15 +82,16 @@ impl TestIODevice {
 }
 
 impl U8Access for TestIODevice {
-    fn write(&self, addr: u64, data: u8) {
+    fn write(&self, addr: u64, data: u8) -> region::Result<()> {
         let tx = self.tx.lock().unwrap();
         tx.send(addr as u8).unwrap();
         sleep(Duration::from_nanos(300));
         tx.send(data).unwrap();
+        Ok(())
     }
 
-    fn read(&self, _: u64) -> u8 {
-        self.rx.lock().unwrap().recv().unwrap()
+    fn read(&self, _: u64) -> region::Result<u8> {
+        Ok(self.rx.lock().unwrap().recv().unwrap())
     }
 }
 
@@ -105,7 +108,7 @@ fn simple_device() {
         let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(region.deref(), 10 - (i as u64), i);
+            U8Access::write(region.deref(), 10 - (i as u64), i).unwrap();
         }
     });
 
@@ -113,7 +116,7 @@ fn simple_device() {
         let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(region.deref(), 10 - (i as u64), i);
+            U8Access::write(region.deref(), 10 - (i as u64), i).unwrap();
         }
     });
 
@@ -121,7 +124,7 @@ fn simple_device() {
         thread::spawn(|| {
             let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
             for _ in 0..40 {
-                U8Access::read(region.deref(), 0);
+                U8Access::read(region.deref(), 0).unwrap();
             }
         })
     };
