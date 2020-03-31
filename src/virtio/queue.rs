@@ -32,7 +32,7 @@ impl From<String> for Error {
 impl From<region::Error> for Error {
     fn from(error: region::Error) -> Self {
         match error {
-            region::Error::Misalign(addr) => Error::MemError(format!("Misalign!(addr = {:#x})", addr)),
+            region::Error::Misaligned(addr) => Error::MemError(format!("Misalign!(addr = {:#x})", addr)),
             region::Error::AccessErr(addr, msg) => Error::MemError(format!("AccessErr!{} (addr = {:#x})", msg, addr))
         }
     }

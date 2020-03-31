@@ -14,7 +14,7 @@ use std::borrow::{BorrowMut, Borrow};
 
 #[derive(Debug)]
 pub enum Error {
-    Misalign(u64),
+    Misaligned(u64),
     AccessErr(u64, String),
 }
 
@@ -51,14 +51,14 @@ pub trait SizedAccess: BytesAccess {
 pub trait U16Access: BytesAccess {
     fn write(&self, addr: u64, data: u16) -> Result<()> {
         if addr.trailing_zeros() < 1 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         BytesAccess::write(self, align_down(addr, size_of::<u16>() as u64), &data.to_le_bytes())
     }
 
     fn read(&self, addr: u64) -> Result<u16> {
         if addr.trailing_zeros() < 1 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let base = align_down(addr, size_of::<u16>() as u64);
         let mut bytes = [0 as u8; size_of::<u16>()];
@@ -70,14 +70,14 @@ pub trait U16Access: BytesAccess {
 pub trait U32Access: BytesAccess {
     fn write(&self, addr: u64, data: u32) -> Result<()> {
         if addr.trailing_zeros() < 2 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         BytesAccess::write(self, align_down(addr, size_of::<u32>() as u64), &data.to_le_bytes())
     }
 
     fn read(&self, addr: u64) -> Result<u32> {
         if addr.trailing_zeros() < 2 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let base = align_down(addr, size_of::<u32>() as u64);
         let mut bytes = [0 as u8; size_of::<u32>()];
@@ -89,14 +89,14 @@ pub trait U32Access: BytesAccess {
 pub trait U64Access: BytesAccess {
     fn write(&self, addr: u64, data: u64) -> Result<()> {
         if addr.trailing_zeros() < 3 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         BytesAccess::write(self, align_down(addr, size_of::<u64>() as u64), &data.to_le_bytes())
     }
 
     fn read(&self, addr: u64) -> Result<u64> {
         if addr.trailing_zeros() < 3 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let base = align_down(addr, size_of::<u64>() as u64);
         let mut bytes = [0 as u8; size_of::<u64>()];
@@ -425,7 +425,7 @@ impl BytesAccess for Region {
 impl U16Access for Region {
     fn write(&self, addr: u64, data: u16) -> Result<()>  {
         if addr.trailing_zeros() < 1 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 2);
         if pa & 0x1 == 0 {
@@ -437,7 +437,7 @@ impl U16Access for Region {
 
     fn read(&self, addr: u64) -> Result<u16>  {
         if addr.trailing_zeros() < 1 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 2);
         if pa & 0x1 == 0 {
@@ -453,7 +453,7 @@ impl U16Access for Region {
 impl U32Access for Region {
     fn write(&self, addr: u64, data: u32) -> Result<()>  {
         if addr.trailing_zeros() < 2 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 4);
         if pa & 0x3 == 0 {
@@ -465,7 +465,7 @@ impl U32Access for Region {
 
     fn read(&self, addr: u64) -> Result<u32>  {
         if addr.trailing_zeros() < 2 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 4);
         if pa & 0x3 == 0 {
@@ -481,7 +481,7 @@ impl U32Access for Region {
 impl U64Access for Region {
     fn write(&self, addr: u64, data: u64) -> Result<()>  {
         if addr.trailing_zeros() < 3 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 8);
         if pa & 0x7 == 0 {
@@ -493,7 +493,7 @@ impl U64Access for Region {
 
     fn read(&self, addr: u64) -> Result<u64> {
         if addr.trailing_zeros() < 3 {
-            return Err(Error::Misalign(addr));
+            return Err(Error::Misaligned(addr));
         }
         let pa = self.translate(addr, 8);
         if pa & 0x7 == 0 {
