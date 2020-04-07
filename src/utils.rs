@@ -21,6 +21,10 @@ impl ExitCtrlInner {
         }
     }
 
+    fn reset(&mut self) {
+        self.received = None
+    }
+
     fn poll(&mut self) -> Result<String, TryRecvError> {
         if let Some(ref res) = self.received {
             Ok(res.clone())
@@ -49,6 +53,9 @@ impl ExitCtrl {
     }
     pub fn poll(&self) -> Result<String, TryRecvError> {
         self.inner.lock().unwrap().poll()
+    }
+    pub fn reset(&self) {
+        self.inner.lock().unwrap().reset()
     }
     pub fn exit(&self, msg: &str) -> Result<(), SendError<String>> {
         self.inner.lock().unwrap().exit(msg)
