@@ -37,4 +37,13 @@ extern uint16_t __ts_region_read_u16(const void* region, const uint64_t addr);
 extern uint32_t __ts_region_read_u32(const void* region, const uint64_t addr);
 extern uint64_t __ts_region_read_u64(const void* region, const uint64_t addr);
 
+extern void __ts_space_write_u8(const void* space, const uint64_t addr, const uint8_t data);
+extern void __ts_space_write_u16(const void* space, const uint64_t addr, const uint16_t data);
+extern void __ts_space_write_u32(const void* space, const uint64_t addr, const uint32_t data);
+extern void __ts_space_write_u64(const void* space, const uint64_t addr, const uint64_t data);
+extern uint8_t __ts_space_read_u8(const void* space, const uint64_t addr);
+extern uint16_t __ts_space_read_u16(const void* space, const uint64_t addr);
+extern uint32_t __ts_space_read_u32(const void* space, const uint64_t addr);
+extern uint64_t __ts_space_read_u64(const void* space, const uint64_t addr);
+
 #endif

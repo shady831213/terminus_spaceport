@@ -101,6 +101,35 @@ void tsv_region_read_u64(const void* region, const uint64_t addr, uint64_t* data
     *data =__ts_region_read_u64(region, addr);
 }
 
+void tsv_space_write_u8(const void* space, const uint64_t addr, const uint8_t data) {
+    __ts_space_write_u8(space, addr, data);
+}
+
+void tsv_space_write_u16(const void* space, const uint64_t addr, const uint16_t data) {
+    __ts_space_write_u16(space, addr, data);
+}
+
+void tsv_space_write_u32(const void* space, const uint64_t addr, const uint32_t data) {
+    __ts_space_write_u32(space, addr, data);
+}
+
+void tsv_space_write_u64(const void* space, const uint64_t addr, const uint64_t data) {
+    __ts_space_write_u64(space, addr, data);
+}
+
+void tsv_space_read_u8(const void* space, const uint64_t addr, uint8_t* data){
+    *data = __ts_space_read_u8(space, addr);
+}
+void tsv_space_read_u16(const void* space, const uint64_t addr, uint16_t* data){
+    *data = __ts_space_read_u16(space, addr);
+}
+void tsv_space_read_u32(const void* space, const uint64_t addr, uint32_t* data){
+    *data = __ts_space_read_u32(space, addr);
+}
+void tsv_space_read_u64(const void* space, const uint64_t addr, uint64_t* data){
+    *data =__ts_space_read_u64(space, addr);
+}
+
 uint64_t tsv_region_base(const void* region){
     return ((ts_mem_info*)__ts_region_info(region))->base;
 }

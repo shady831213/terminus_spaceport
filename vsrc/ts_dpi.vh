@@ -43,4 +43,13 @@ import "DPI-C" function void tsv_region_read_u8(input chandle  region, input lon
 import "DPI-C" function void tsv_region_read_u16(input chandle  region, input longint unsigned addr, output shortint unsigned data);
 import "DPI-C" function void tsv_region_read_u32(input chandle  region, input longint unsigned addr, output int unsigned data);
 import "DPI-C" function void tsv_region_read_u64(input chandle  region, input longint unsigned addr, output longint unsigned data);
+
+import "DPI-C" function void tsv_space_write_u8(input chandle  space, input longint unsigned addr, input byte unsigned data);
+import "DPI-C" function void tsv_space_write_u16(input chandle  space, input longint unsigned addr, input shortint unsigned data);
+import "DPI-C" function void tsv_space_write_u32(input chandle  space, input longint unsigned addr, input int unsigned data);
+import "DPI-C" function void tsv_space_write_u64(input chandle  space, input longint unsigned addr, input longint unsigned data);
+import "DPI-C" function void tsv_space_read_u8(input chandle  space, input longint unsigned addr, output byte unsigned data);
+import "DPI-C" function void tsv_space_read_u16(input chandle  space, input longint unsigned addr, output shortint unsigned data);
+import "DPI-C" function void tsv_space_read_u32(input chandle  space, input longint unsigned addr, output int unsigned data);
+import "DPI-C" function void tsv_space_read_u64(input chandle  space, input longint unsigned addr, output longint unsigned data);
 `endif

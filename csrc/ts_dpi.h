@@ -31,6 +31,15 @@ void tsv_region_read_u16(const void* heap, const uint64_t addr, uint16_t* data);
 void tsv_region_read_u32(const void* heap, const uint64_t addr, uint32_t* data);
 void tsv_region_read_u64(const void* heap, const uint64_t addr, uint64_t* data);
 
+void tsv_space_write_u8(const void* space, const uint64_t addr, const uint8_t data);
+void tsv_space_write_u16(const void* space, const uint64_t addr, const uint16_t data);
+void tsv_space_write_u32(const void* space, const uint64_t addr, const uint32_t data);
+void tsv_space_write_u64(const void* space, const uint64_t addr, const uint64_t data);
+void tsv_space_read_u8(const void* heap, const uint64_t addr, uint8_t* data);
+void tsv_space_read_u16(const void* heap, const uint64_t addr, uint16_t* data);
+void tsv_space_read_u32(const void* heap, const uint64_t addr, uint32_t* data);
+void tsv_space_read_u64(const void* heap, const uint64_t addr, uint64_t* data);
+
 uint64_t tsv_region_base(const void* region);
 uint64_t tsv_region_size(const void* region);
 
