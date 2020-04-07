@@ -25,7 +25,6 @@ impl Term {
         let origin_termios = termios;
         termios.c_lflag &= !(ICANON | ECHO);
         tcsetattr(stdin_fd, TCSANOW, &termios)?;
-        println!("create term!");
         Ok(Term(
             origin_termios,
             origin_fflag,
