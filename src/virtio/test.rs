@@ -157,8 +157,7 @@ impl TestDeviceDriver {
         let mut input_server = DefaultQueueServer::new(&heap);
         input_server.init_queue(input_queue.deref()).unwrap();
         irq_vec.binder().bind(0, {
-            move |irq_status| {
-                irq_status.set_pending(0).unwrap();
+            move || {
             }
         }).unwrap();
         let input_head = input_server.add_to_queue(&input_queue, &vec![input_buffer.deref()].as_slice(), &vec![].as_slice()).unwrap();

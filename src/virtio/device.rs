@@ -22,8 +22,7 @@ impl Device {
         let irq_vec = IrqVec::new(num_irqs);
         for i in 0..num_irqs {
             let sender = irq_sender.clone();
-            irq_vec.binder().bind(i, move |irq_status| {
-                irq_status.set_pending(i).unwrap();
+            irq_vec.binder().bind(i, move || {
                 sender.send().unwrap();
             }).unwrap();
         }
