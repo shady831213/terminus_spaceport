@@ -170,10 +170,11 @@ pub struct IrqVecSender {
 impl IrqVecSender {
     pub fn send(&self) -> Result<()> {
         let mut irq_vec = self.irq_vec.lock().unwrap();
-        irq_vec.status.set_pending(self.irq_num)?;
+        irq_vec.status.clr_pending(self.irq_num)?;
         if !irq_vec.status.enable(self.irq_num)? {
             return Ok(());
         }
+        irq_vec.status.set_pending(self.irq_num)?;
         irq_vec.handlers.0[self.irq_num].send_irq();
         Ok(())
     }
