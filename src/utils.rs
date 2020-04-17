@@ -22,7 +22,12 @@ impl ExitCtrlInner {
     }
 
     fn reset(&mut self) {
-        self.received = None
+        self.received = None;
+        loop {
+            if self.receiver.try_recv().is_err() {
+                break
+            }
+        }
     }
 
     fn poll(&mut self) -> Result<String, TryRecvError> {
