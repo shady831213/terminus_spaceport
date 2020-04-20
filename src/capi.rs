@@ -4,7 +4,8 @@ use std::os::raw::c_char;
 use crate::space::{Space, SPACE_TABLE};
 use std::sync::Arc;
 use crate::memory::region::*;
-use crate::memory::*;
+use crate::memory::allocator::*;
+use crate::memory::MemInfo;
 use std::ops::Deref;
 
 

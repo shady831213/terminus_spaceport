@@ -1,5 +1,6 @@
-use super::*;
-use crate::memory::region::*;
+use crate::memory::region::Region;
+use crate::memory::region::GHEAP;
+use crate::memory::region::Heap;
 use crate::memory::MemInfo;
 use crate::memory::region;
 use crate::space::*;
@@ -9,6 +10,7 @@ use std::ops::Deref;
 use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+use crate::memory::prelude::*;
 
 
 #[test]

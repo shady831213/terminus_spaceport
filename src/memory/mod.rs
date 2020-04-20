@@ -1,7 +1,7 @@
-mod allocator;
+pub mod allocator;
 pub mod region;
 
-pub use allocator::*;
+pub mod prelude;
 
 #[cfg(test)]
 #[derive(Copy, Clone, Debug, PartialEq)]
