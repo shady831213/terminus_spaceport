@@ -387,7 +387,7 @@ impl Region {
     }
 
     fn check_range(&self, addr: u64) {
-        assert!(addr >= self.info.base && addr < self.info.base + self.info.size, format!("addr 0x{:x?} translate fail!range {:x?}", addr, self.info));
+        assert!(addr >= self.info.base && addr < self.info.base + self.info.size, format!("addr {:#x} translate fail!range {:#x?}", addr, self.info));
     }
 
     fn translate(&self, va: u64, size: usize) -> u64 {
