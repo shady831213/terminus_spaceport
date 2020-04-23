@@ -133,11 +133,12 @@ impl LazyModel {
 }
 
 impl U8Access for LazyModel {
+    #[inline(always)]
     fn write(&self, addr: u64, data: u8) -> Result<()> {
         self.inner.lock().unwrap().insert(addr, data);
         Ok(())
     }
-
+    #[inline(always)]
     fn read(&self, addr: u64) -> Result<u8> {
         Ok(if let Some(&v) = self.inner.lock().unwrap().get(&addr) {
             v
@@ -148,6 +149,7 @@ impl U8Access for LazyModel {
 }
 
 impl BytesAccess for LazyModel {
+    #[inline(always)]
     fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
         {
             let mut inner = self.inner.lock().unwrap();
@@ -155,6 +157,7 @@ impl BytesAccess for LazyModel {
         }
         Ok(())
     }
+    #[inline(always)]
     fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
         {
             let inner = self.inner.lock().unwrap();
@@ -195,22 +198,25 @@ impl Model {
 }
 
 impl U8Access for Model {
+    #[inline(always)]
     fn write(&self, addr: u64, data: u8) -> Result<()> {
         self.inner.lock().unwrap()[(addr - self.info.base) as usize] = data;
         Ok(())
     }
-
+    #[inline(always)]
     fn read(&self, addr: u64) -> Result<u8> {
         Ok(self.inner.lock().unwrap()[(addr - self.info.base) as usize])
     }
 }
 
 impl BytesAccess for Model {
+    #[inline(always)]
     fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
         let offset = (addr - self.info.base) as usize;
         self.inner.lock().unwrap()[offset..offset + data.len()].copy_from_slice(data);
         Ok(())
     }
+    #[inline(always)]
     fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
         let offset = (addr - self.info.base) as usize;
         data.copy_from_slice(&self.inner.lock().unwrap()[offset..offset + data.len()]);
@@ -385,11 +391,11 @@ impl Region {
             info: MemInfo { base: base, size: size },
         })
     }
-
+    #[inline(always)]
     fn check_range(&self, addr: u64) {
         assert!(addr >= self.info.base && addr < self.info.base + self.info.size, format!("addr {:#x} translate fail!range {:#x?}", addr, self.info));
     }
-
+    #[inline(always)]
     fn translate(&self, va: u64, size: usize) -> u64 {
         for addr in va..va + size as u64 {
             self.check_range(addr)
