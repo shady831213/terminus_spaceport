@@ -34,16 +34,16 @@ fn region_access() {
         let region = heap.alloc(9, 8).unwrap();
         let remap = Region::remap(0x80000000, &region);
         let remap2 = Region::remap_partial(0x10000000, &region, 0, 5);
-        let remap3 = Region::remap_partial(0x20000000, &region, 5, 4);
+        let remap3 = Region::remap_partial(0x20000000, &region, 8, 1);
         U64Access::write(region.deref(), region.info.base, 0x5a5aa5a5aaaa5555).unwrap();
         U8Access::write(region.deref(), region.info.base + 8, 0xab).unwrap();
         assert_eq!(U32Access::read(remap.deref(), remap.info.base).unwrap(), 0xaaaa5555);
         assert_eq!(U8Access::read(remap2.deref(), remap2.info.base + 4).unwrap(), 0xa5);
-        assert_eq!(U32Access::read(remap3.deref(), remap3.info.base).unwrap(), 0xab5a5aa5);
+        assert_eq!(U8Access::read(remap3.deref(), remap3.info.base).unwrap(), 0xab);
         U32Access::write(remap.deref(), remap.info.base, 0xbeefdead).unwrap();
         U8Access::write(remap2.deref(), remap2.info.base + 4, 0xef).unwrap();
-        U32Access::write(remap3.deref(), remap3.info.base, 0xccdeadbe).unwrap();
-        assert_eq!(U64Access::read(region.deref(), region.info.base).unwrap(), 0xdeadbeefbeefdead);
+        U8Access::write(remap3.deref(), remap3.info.base, 0xcc).unwrap();
+        assert_eq!(U64Access::read(region.deref(), region.info.base).unwrap(), 0x5a5aa5efbeefdead);
         assert_eq!(U8Access::read(region.deref(), region.info.base + 8).unwrap(), 0xcc);
     }
 }
