@@ -5,103 +5,80 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use super::allocator::LockedAllocator;
 use std::mem::size_of;
-use std::convert::TryInto;
 use std::ops::Deref;
 use super::*;
 use std::marker::{Sync, Send, Sized};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::borrow::{BorrowMut, Borrow};
 
-#[derive(Debug)]
-pub enum Error {
-    Misaligned(u64),
-    AccessErr(u64, String),
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
 
 pub trait U8Access {
-    fn write(&self, addr: u64, data: u8) -> Result<()>;
-    fn read(&self, addr: u64) -> Result<u8>;
+    fn write(&self, addr: u64, data: u8);
+    fn read(&self, addr: u64) -> u8;
 }
 
 pub trait BytesAccess: U8Access {
-    fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
-        data.iter().enumerate().for_each(|(offset, d)| { U8Access::write(self, addr + offset as u64, *d) }.unwrap());
-        Ok(())
+    fn write(&self, addr: u64, data: &[u8]) {
+        data.iter().enumerate().for_each(|(offset, d)| { U8Access::write(self, addr + offset as u64, *d) });
     }
-    fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
-        data.iter_mut().enumerate().for_each(|(offset, d)| { *d = U8Access::read(self, addr + offset as u64).unwrap() });
-        Ok(())
+    fn read(&self, addr: u64, data: &mut [u8]) {
+        data.iter_mut().enumerate().for_each(|(offset, d)| { *d = U8Access::read(self, addr + offset as u64) });
     }
 }
 
 
 pub trait SizedAccess: BytesAccess {
-    fn write<T: Sized>(&self, addr: u64, data: &T) -> Result<()> {
+    fn write<T: Sized>(&self, addr: u64, data: &T) {
         BytesAccess::write(self, addr, unsafe { std::slice::from_raw_parts((data as *const T) as *const u8, std::mem::size_of::<T>()) })
     }
 
-    fn read<T: Sized>(&self, addr: u64, data: &mut T) -> Result<()> {
+    fn read<T: Sized>(&self, addr: u64, data: &mut T) {
         BytesAccess::read(self, addr, unsafe { std::slice::from_raw_parts_mut((data as *mut T) as *mut u8, std::mem::size_of::<T>()) })
     }
 }
 
 pub trait U16Access: BytesAccess {
-    fn write(&self, addr: u64, data: u16) -> Result<()> {
-        if addr.trailing_zeros() < 1 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u16) {
+        assert!(addr.trailing_zeros() > 0, format!("U16Access:unaligned addr:{:#x}", addr));
         BytesAccess::write(self, align_down(addr, size_of::<u16>() as u64), &data.to_le_bytes())
     }
 
-    fn read(&self, addr: u64) -> Result<u16> {
-        if addr.trailing_zeros() < 1 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u16 {
+        assert!(addr.trailing_zeros() > 0, format!("U16Access:unaligned addr:{:#x}", addr));
         let base = align_down(addr, size_of::<u16>() as u64);
         let mut bytes = [0 as u8; size_of::<u16>()];
-        BytesAccess::read(self, base, &mut bytes)?;
-        Ok(u16::from_le_bytes(bytes))
+        BytesAccess::read(self, base, &mut bytes);
+        u16::from_le_bytes(bytes)
     }
 }
 
 pub trait U32Access: BytesAccess {
-    fn write(&self, addr: u64, data: u32) -> Result<()> {
-        if addr.trailing_zeros() < 2 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u32) {
+        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         BytesAccess::write(self, align_down(addr, size_of::<u32>() as u64), &data.to_le_bytes())
     }
 
-    fn read(&self, addr: u64) -> Result<u32> {
-        if addr.trailing_zeros() < 2 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u32 {
+        assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", addr));
         let base = align_down(addr, size_of::<u32>() as u64);
         let mut bytes = [0 as u8; size_of::<u32>()];
-        BytesAccess::read(self, base, &mut bytes)?;
-        Ok(u32::from_le_bytes(bytes))
+        BytesAccess::read(self, base, &mut bytes);
+        u32::from_le_bytes(bytes)
     }
 }
 
 pub trait U64Access: BytesAccess {
-    fn write(&self, addr: u64, data: u64) -> Result<()> {
-        if addr.trailing_zeros() < 3 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u64) {
+        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
         BytesAccess::write(self, align_down(addr, size_of::<u64>() as u64), &data.to_le_bytes())
     }
 
-    fn read(&self, addr: u64) -> Result<u64> {
-        if addr.trailing_zeros() < 3 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u64 {
+        assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", addr));
         let base = align_down(addr, size_of::<u64>() as u64);
         let mut bytes = [0 as u8; size_of::<u64>()];
-        BytesAccess::read(self, base, &mut bytes)?;
-        Ok(u64::from_le_bytes(bytes))
+        BytesAccess::read(self, base, &mut bytes);
+        u64::from_le_bytes(bytes)
     }
 }
 
@@ -133,32 +110,28 @@ impl LazyModel {
 }
 
 impl U8Access for LazyModel {
-    #[inline(always)]
-    fn write(&self, addr: u64, data: u8) -> Result<()> {
+    fn write(&self, addr: u64, data: u8) {
         self.inner.lock().unwrap().insert(addr, data);
-        Ok(())
     }
-    #[inline(always)]
-    fn read(&self, addr: u64) -> Result<u8> {
-        Ok(if let Some(&v) = self.inner.lock().unwrap().get(&addr) {
+
+    fn read(&self, addr: u64) -> u8 {
+        if let Some(&v) = self.inner.lock().unwrap().get(&addr) {
             v
         } else {
             0
-        })
+        }
     }
 }
 
 impl BytesAccess for LazyModel {
-    #[inline(always)]
-    fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
+    fn write(&self, addr: u64, data: &[u8]) {
         {
             let mut inner = self.inner.lock().unwrap();
             data.iter().enumerate().for_each(|(offset, d)| { inner.borrow_mut().insert(addr + offset as u64, *d); });
         }
-        Ok(())
     }
-    #[inline(always)]
-    fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
+
+    fn read(&self, addr: u64, data: &mut [u8]) {
         {
             let inner = self.inner.lock().unwrap();
             data.iter_mut().enumerate().for_each(|(offset, d)| {
@@ -169,7 +142,6 @@ impl BytesAccess for LazyModel {
                 }
             });
         }
-        Ok(())
     }
 }
 
@@ -198,29 +170,24 @@ impl Model {
 }
 
 impl U8Access for Model {
-    #[inline(always)]
-    fn write(&self, addr: u64, data: u8) -> Result<()> {
+    fn write(&self, addr: u64, data: u8) {
         self.inner.lock().unwrap()[(addr - self.info.base) as usize] = data;
-        Ok(())
     }
-    #[inline(always)]
-    fn read(&self, addr: u64) -> Result<u8> {
-        Ok(self.inner.lock().unwrap()[(addr - self.info.base) as usize])
+
+    fn read(&self, addr: u64) -> u8 {
+        self.inner.lock().unwrap()[(addr - self.info.base) as usize]
     }
 }
 
 impl BytesAccess for Model {
-    #[inline(always)]
-    fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
+    fn write(&self, addr: u64, data: &[u8]) {
         let offset = (addr - self.info.base) as usize;
         self.inner.lock().unwrap()[offset..offset + data.len()].copy_from_slice(data);
-        Ok(())
     }
-    #[inline(always)]
-    fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
+
+    fn read(&self, addr: u64, data: &mut [u8]) {
         let offset = (addr - self.info.base) as usize;
         data.copy_from_slice(&self.inner.lock().unwrap()[offset..offset + data.len()]);
-        Ok(())
     }
 }
 
@@ -280,51 +247,51 @@ macro_rules! memory_access {
 
 
 impl U8Access for Memory {
-    fn write(&self, addr: u64, data: u8) -> Result<()> {
+    fn write(&self, addr: u64, data: u8) {
         memory_access!(U8Access, write, self, addr, data)
     }
 
-    fn read(&self, addr: u64) -> Result<u8> {
+    fn read(&self, addr: u64) -> u8 {
         memory_access!(U8Access, read, self, addr)
     }
 }
 
 impl U16Access for Memory {
-    fn write(&self, addr: u64, data: u16) -> Result<()> {
+    fn write(&self, addr: u64, data: u16) {
         memory_access!(U16Access, write, self, addr, data)
     }
 
-    fn read(&self, addr: u64) -> Result<u16> {
+    fn read(&self, addr: u64) -> u16 {
         memory_access!(U16Access, read, self, addr)
     }
 }
 
 impl U32Access for Memory {
-    fn write(&self, addr: u64, data: u32) -> Result<()> {
+    fn write(&self, addr: u64, data: u32) {
         memory_access!(U32Access, write, self, addr, data)
     }
 
-    fn read(&self, addr: u64) -> Result<u32> {
+    fn read(&self, addr: u64) -> u32 {
         memory_access!(U32Access, read, self, addr)
     }
 }
 
 impl U64Access for Memory {
-    fn write(&self, addr: u64, data: u64) -> Result<()> {
+    fn write(&self, addr: u64, data: u64) {
         memory_access!(U64Access, write,  self, addr, data)
     }
 
-    fn read(&self, addr: u64) -> Result<u64> {
+    fn read(&self, addr: u64) -> u64 {
         memory_access!(U64Access, read, self, addr)
     }
 }
 
 impl BytesAccess for Memory {
-    fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
+    fn write(&self, addr: u64, data: &[u8]) {
         memory_access!(BytesAccess, write, self, addr, data)
     }
 
-    fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
+    fn read(&self, addr: u64, data: &mut [u8]) {
         memory_access!(BytesAccess, read, self, addr, data)
     }
 }
@@ -395,8 +362,8 @@ impl Region {
     fn translate(&self, va: u64, size: usize) -> u64 {
         let end = va + size as u64 - 1;
         assert!(va >= self.info.base && va < self.info.base + self.info.size &&
-            end >= self.info.base && end < self.info.base + self.info.size,
-            format!("addr {:#x}-{:#x} translate fail!range {:#x?}", va, end, self.info));
+                    end >= self.info.base && end < self.info.base + self.info.size,
+                format!("addr {:#x}-{:#x} translate fail!range {:#x?}", va, end, self.info));
         match &self.memory {
             Memory::Remap(remap) => va - self.info.base + remap.info.base,
             _ => va,
@@ -406,69 +373,51 @@ impl Region {
 
 
 impl U8Access for Region {
-    fn write(&self, addr: u64, data: u8) -> Result<()> {
+    fn write(&self, addr: u64, data: u8) {
         U8Access::write(&self.memory, self.translate(addr, 1), data)
     }
 
-    fn read(&self, addr: u64) -> Result<u8> {
+    fn read(&self, addr: u64) -> u8 {
         U8Access::read(&self.memory, self.translate(addr, 1))
     }
 }
 
 impl BytesAccess for Region {
-    fn write(&self, addr: u64, data: &[u8]) -> Result<()> {
+    fn write(&self, addr: u64, data: &[u8]) {
         BytesAccess::write(&self.memory, self.translate(addr, data.len()), data)
     }
 
-    fn read(&self, addr: u64, data: &mut [u8]) -> Result<()> {
+    fn read(&self, addr: u64, data: &mut [u8]) {
         BytesAccess::read(&self.memory, self.translate(addr, data.len()), data)
     }
 }
 
 impl U16Access for Region {
-    fn write(&self, addr: u64, data: u16) -> Result<()> {
-        if addr.trailing_zeros() < 1 {
-            return Err(Error::Misaligned(addr));
-        }
-        U16Access::write(&self.memory, self.translate(addr, 2),data)
+    fn write(&self, addr: u64, data: u16) {
+        U16Access::write(&self.memory, self.translate(addr, 2), data)
     }
 
-    fn read(&self, addr: u64) -> Result<u16> {
-        if addr.trailing_zeros() < 1 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u16 {
         U16Access::read(&self.memory, self.translate(addr, 2))
     }
 }
 
 impl U32Access for Region {
-    fn write(&self, addr: u64, data: u32) -> Result<()> {
-        if addr.trailing_zeros() < 2 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u32) {
         U32Access::write(&self.memory, self.translate(addr, 4), data)
     }
 
-    fn read(&self, addr: u64) -> Result<u32> {
-        if addr.trailing_zeros() < 2 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u32 {
         U32Access::read(&self.memory, self.translate(addr, 4))
     }
 }
 
 impl U64Access for Region {
-    fn write(&self, addr: u64, data: u64) -> Result<()> {
-        if addr.trailing_zeros() < 3 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn write(&self, addr: u64, data: u64) {
         U64Access::write(&self.memory, self.translate(addr, 8), data)
     }
 
-    fn read(&self, addr: u64) -> Result<u64> {
-        if addr.trailing_zeros() < 3 {
-            return Err(Error::Misaligned(addr));
-        }
+    fn read(&self, addr: u64) -> u64 {
         U64Access::read(&self.memory, self.translate(addr, 8))
     }
 }

@@ -83,7 +83,7 @@ impl QueueClient for TestDeviceInput {
                 }
             })
             .map(|desc| {
-                U32Access::write(self.memory.deref(), desc.addr, 0xa5a55a5a).unwrap();
+                U32Access::write(self.memory.deref(), desc.addr, 0xa5a55a5a);
                 4
             })
             .fold(0, |acc, c| { acc + c });
@@ -123,8 +123,8 @@ impl QueueClient for TestDeviceOutput {
                 }
             })
             .map(|desc| {
-                assert_eq!(U32Access::read(self.memory.deref(), desc.addr).unwrap(), 0xdeadbeaf);
-                println!("get data {:#x}", U32Access::read(self.memory.deref(), desc.addr).unwrap());
+                assert_eq!(U32Access::read(self.memory.deref(), desc.addr), 0xdeadbeaf);
+                println!("get data {:#x}", U32Access::read(self.memory.deref(), desc.addr));
                 4
             })
             .fold(0, |acc, c| { acc + c });
@@ -185,7 +185,7 @@ impl TestDeviceDriver {
             queue.desc_iter(used.id as u16).for_each(|desc_res| {
                 let (idx, desc) = desc_res.unwrap();
                 let mut desc_buf: Vec<u8> = vec![0; desc.len as usize];
-                BytesAccess::read(self.heap.get_region().deref(), desc.addr, &mut desc_buf).unwrap();
+                BytesAccess::read(self.heap.get_region().deref(), desc.addr, &mut desc_buf);
                 output.append(&mut desc_buf);
             });
             assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
@@ -204,7 +204,7 @@ impl TestDeviceDriver {
             self.output_server.free_used(queue.deref(), &used, false)?;
         }
         let output_buffer = self.heap.alloc(input.len() as u64,4).unwrap();
-        BytesAccess::write(output_buffer.deref(), output_buffer.info.base, input).unwrap();
+        BytesAccess::write(output_buffer.deref(), output_buffer.info.base, input);
         let head = self.output_server.add_to_queue(&queue, &vec![].as_slice(), &vec![output_buffer.deref()].as_slice())?;
         self.output_server.notify_queue(&queue,head)?;
         Ok(input.len())

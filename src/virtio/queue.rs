@@ -29,14 +29,6 @@ impl From<String> for Error {
     }
 }
 
-impl From<region::Error> for Error {
-    fn from(error: region::Error) -> Self {
-        match error {
-            region::Error::Misaligned(addr) => Error::MemError(format!("Misalign!(addr = {:#x})", addr)),
-            region::Error::AccessErr(addr, msg) => Error::MemError(format!("AccessErr!{} (addr = {:#x})", msg, addr))
-        }
-    }
-}
 
 pub type Result<T> = result::Result<T, Error>;
 
@@ -207,37 +199,37 @@ impl Queue {
     }
 
     pub fn set_desc(&self, idx: u16, desc: &DescMeta) -> Result<()> {
-        SizedAccess::write(self.memory.deref(), self.desc_addr(idx)?, desc)?;
+        SizedAccess::write(self.memory.deref(), self.desc_addr(idx)?, desc);
         Ok(())
     }
 
     pub fn get_desc(&self, idx: u16) -> Result<DescMeta> {
         let mut desc = DescMeta::empty();
-        SizedAccess::read(self.memory.deref(), self.desc_addr(idx)?, &mut desc)?;
+        SizedAccess::read(self.memory.deref(), self.desc_addr(idx)?, &mut desc);
         Ok(desc)
     }
 
     pub fn get_avail_idx(&self) -> Result<Wrapping<u16>> {
-        Ok(Wrapping(U16Access::read(self.memory.deref(), self.get_avail_addr() + 2)?))
+        Ok(Wrapping(U16Access::read(self.memory.deref(), self.get_avail_addr() + 2)))
     }
 
     pub fn set_avail_idx(&self, idx: u16) -> Result<()> {
-        U16Access::write(self.memory.deref(), self.get_avail_addr() + 2, idx)?;
+        U16Access::write(self.memory.deref(), self.get_avail_addr() + 2, idx);
         Ok(())
     }
 
     pub fn set_avail_desc(&self, avail_idx: u16, desc_idx: u16) -> Result<()> {
         self.check_idx(desc_idx)?;
-        U16Access::write(self.memory.deref(), self.avail_elem_addr(avail_idx), desc_idx)?;
+        U16Access::write(self.memory.deref(), self.avail_elem_addr(avail_idx), desc_idx);
         Ok(())
     }
 
     pub fn get_used_idx(&self) -> Result<Wrapping<u16>> {
-        Ok(Wrapping(U16Access::read(self.memory.deref(), self.get_used_addr() + 2)?))
+        Ok(Wrapping(U16Access::read(self.memory.deref(), self.get_used_addr() + 2)))
     }
 
     fn set_used_idx(&self, idx: u16) -> Result<()> {
-        U16Access::write(self.memory.deref(), self.get_used_addr() + 2, idx)?;
+        U16Access::write(self.memory.deref(), self.get_used_addr() + 2, idx);
         Ok(())
     }
 
@@ -247,13 +239,13 @@ impl Queue {
 
     pub fn get_used_elem(&self, used_idx: u16) -> Result<RingUsedMetaElem> {
         let mut elem = RingUsedMetaElem::empty();
-        SizedAccess::read(self.memory.deref(), self.used_elem_addr(used_idx), &mut elem)?;
+        SizedAccess::read(self.memory.deref(), self.used_elem_addr(used_idx), &mut elem);
         Ok(elem)
     }
 
     fn set_used_elem(&self, used_idx: u16, elem: &RingUsedMetaElem) -> Result<()> {
         self.check_idx(elem.id as u16)?;
-        SizedAccess::write(self.memory.deref(), self.used_elem_addr(used_idx), elem)?;
+        SizedAccess::write(self.memory.deref(), self.used_elem_addr(used_idx), elem);
         Ok(())
     }
 
@@ -300,7 +292,7 @@ impl Queue {
 
     fn avail_iter(&self) -> Result<AvailIter> {
         let mut header = RingMetaHeader { flags: 0, idx: 0 };
-        SizedAccess::read(self.memory.deref(), self.get_avail_addr(), &mut header)?;
+        SizedAccess::read(self.memory.deref(), self.get_avail_addr(), &mut header);
         Ok(AvailIter::new(self,
                           Wrapping(header.idx),
                           *self.last_avail_idx.borrow(),
@@ -349,7 +341,7 @@ impl<'a> Iterator for AvailIter<'a> {
 
         let ring_elem_addr = self.queue.avail_elem_addr(self.next_idx.0);
         let mut desc_idx = 0 as RingAvailMetaElem;
-        SizedAccess::read(self.queue.memory.deref(), ring_elem_addr, &mut desc_idx).unwrap();
+        SizedAccess::read(self.queue.memory.deref(), ring_elem_addr, &mut desc_idx);
         self.next_idx += Wrapping(1);
         Some(desc_idx)
     }
@@ -644,13 +636,13 @@ fn avail_iter_test() {
 
 
     assert_eq!(avail_mem.info.size, 4 + 10 * 2);
-    SizedAccess::write(avail_mem.deref(), avail_mem.info.base, &avail_ring).unwrap();
+    SizedAccess::write(avail_mem.deref(), avail_mem.info.base, &avail_ring);
     *queue.last_avail_idx.borrow_mut() = Wrapping(11);
     for pair in queue.avail_iter().unwrap().enumerate() {
         assert_eq!(avail_ring.ring[pair.0 + queue.last_avail_idx.borrow().0 as usize % queue.get_queue_size()], pair.1)
     }
     *queue.last_avail_idx.borrow_mut() = Wrapping(14);
-    U16Access::write(avail_mem.deref(), avail_mem.info.base + 2, 16).unwrap();
+    U16Access::write(avail_mem.deref(), avail_mem.info.base + 2, 16);
     for pair in queue.avail_iter().unwrap().enumerate() {
         assert_eq!(avail_ring.ring[pair.0 + queue.last_avail_idx.borrow().0 as usize % queue.get_queue_size()], pair.1)
     }

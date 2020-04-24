@@ -1,6 +1,5 @@
 use std::result;
 use std::sync::{Arc, Mutex};
-use std::ops::Deref;
 
 #[derive(Debug)]
 pub enum Error {

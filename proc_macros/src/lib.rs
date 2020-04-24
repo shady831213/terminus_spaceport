@@ -82,48 +82,48 @@ impl AccessTrait {
         let read_msg = self.msg(name, "read");
         let content = match self {
             AccessTrait::U8 => quote! {
-                    fn write(&self, addr: u64, _: u8) -> region::Result<()> {
-                        Err(region::Error::AccessErr(addr, #write_msg.to_string()))
+                    fn write(&self, addr: u64, _: u8){
+                        panic!(#write_msg)
                     }
 
-                    fn read(&self, addr: u64) -> region::Result<u8> {
-                        Err(region::Error::AccessErr(addr, #read_msg.to_string()))
+                    fn read(&self, addr: u64) -> u8 {
+                        panic!(#read_msg)
                     }
             },
             AccessTrait::U16 => quote! {
-                fn write(&self, addr: u64, _: u16) -> region::Result<()> {
-                        Err(region::Error::AccessErr(addr, #write_msg.to_string()))
+                fn write(&self, addr: u64, _: u16){
+                        panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> region::Result<u16> {
-                        Err(region::Error::AccessErr(addr, #read_msg.to_string()))
+                fn read(&self, addr: u64)-> u16 {
+                        panic!(#read_msg)
                 }
             },
             AccessTrait::U32 => quote! {
-                fn write(&self, addr: u64, _: u32) -> region::Result<()> {
-                        Err(region::Error::AccessErr(addr, #write_msg.to_string()))
+                fn write(&self, addr: u64, _: u32){
+                        panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> region::Result<u32> {
-                        Err(region::Error::AccessErr(addr, #read_msg.to_string()))
+                fn read(&self, addr: u64)-> u32 {
+                        panic!(#read_msg)
                 }
             },
             AccessTrait::U64 => quote! {
-                fn write(&self, addr: u64, _: u64) -> region::Result<()> {
-                        Err(region::Error::AccessErr(addr, #write_msg.to_string()))
+                fn write(&self, addr: u64, _: u64){
+                        panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> region::Result<u64> {
-                        Err(region::Error::AccessErr(addr, #read_msg.to_string()))
+                fn read(&self, addr: u64)-> u64 {
+                        panic!(#read_msg)
                 }
             },
             AccessTrait::Bytes => quote! {
-                fn write(&self, addr: u64, _: &[u8]) -> region::Result<()> {
-                        Err(region::Error::AccessErr(addr, #write_msg.to_string()))
+                fn write(&self, addr: u64, _: &[u8]){
+                        panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64, _: &mut [u8]) -> region::Result<()>  {
-                        Err(region::Error::AccessErr(addr, #read_msg.to_string()))
+                fn read(&self, addr: u64, _: &mut [u8]) {
+                        panic!(#read_msg)
                 }
             },
         };

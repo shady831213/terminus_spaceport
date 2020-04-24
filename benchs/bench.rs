@@ -2,6 +2,7 @@
 extern crate test;
 
 use test::Bencher;
+
 extern crate terminus_spaceport;
 
 use terminus_spaceport::memory::*;
@@ -16,13 +17,14 @@ use std::sync::Arc;
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
 
-const MAX_RND:usize = 1000000;
+const MAX_RND: usize = 1000000;
+
 #[bench]
 fn bench_model_access(b: &mut Bencher) {
     let region = GHEAP.alloc(0x1_0000_0000, 1).unwrap();
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
-    for _ in 0 .. MAX_RND {
+    for _ in 0..MAX_RND {
         addrs.push(rng.gen::<u64>() % 0x1_0000_0000)
     }
     let mut i = 0;
@@ -36,21 +38,21 @@ fn bench_model_access(b: &mut Bencher) {
         *data
     };
     b.iter(|| {
-        U64Access::write(region.deref(), get_addr(), 0xaa);
-        U64Access::read(region.deref(), get_addr());
+        U64Access::write(region.deref(), (get_addr() >> 3) << 3, 0xaa);
+        U64Access::read(region.deref(), (get_addr() >> 3) << 3);
     });
     #[cfg(feature = "memprof")]
-    unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
+        unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
 }
 
 #[bench]
 fn bench_space_access(b: &mut Bencher) {
     let region = GHEAP.alloc(0x1_0000_0000, 1).unwrap();
     let space = Arc::new(Space::new());
-    space.add_region("memory", &Region::remap(0x1_0000_0000, &region));
+    space.add_region("memory", &Region::remap(0, &region));
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
-    for _ in 0 .. MAX_RND {
+    for _ in 0..MAX_RND {
         addrs.push(rng.gen::<u64>() % 0x1_0000_0000)
     }
     let mut i = 0;
@@ -64,8 +66,8 @@ fn bench_space_access(b: &mut Bencher) {
         *data
     };
     b.iter(|| {
-        U64Access::write(space.deref(), get_addr(), 0xaa);
-        U64Access::read(space.deref(), get_addr());
+        U64Access::write(space.deref(), (get_addr() >> 3) << 3, 0xaa);
+        U64Access::read(space.deref(), (get_addr() >> 3) << 3);
     });
     #[cfg(feature = "memprof")]
         unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };

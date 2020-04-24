@@ -4,7 +4,6 @@ use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, B
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
-use crate::memory::region;
 
 #[derive(Debug)]
 pub enum Error {
@@ -70,12 +69,12 @@ impl Space {
         }
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> region::Result<Arc<Region>> {
+    pub fn get_region_by_addr(&self, addr: u64) -> Arc<Region> {
         let map = self.regions.lock().unwrap();
         if let Some(v) = map.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
-            Ok(Arc::clone(v))
+            Arc::clone(v)
         } else {
-            Err(region::Error::AccessErr(addr, format!("invalid addr:{:#x}", addr)))
+            panic!(format!("invalid addr:{:#x}", addr))
         }
     }
 
@@ -100,25 +99,25 @@ impl Display for Space {
 }
 
 impl U8Access for Space {
-    fn write(&self, addr: u64, data: u8) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn write(&self, addr: u64, data: u8) {
+        let region = self.get_region_by_addr(addr);
         U8Access::write(region.deref(), addr, data)
     }
 
-    fn read(&self, addr: u64) -> region::Result<u8> {
-        let region = self.get_region_by_addr(addr)?;
+    fn read(&self, addr: u64) -> u8 {
+        let region = self.get_region_by_addr(addr);
         U8Access::read(region.deref(), addr)
     }
 }
 
 impl BytesAccess for Space {
-    fn write(&self, addr: u64, data: &[u8]) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn write(&self, addr: u64, data: &[u8]) {
+        let region = self.get_region_by_addr(addr);
         BytesAccess::write(region.deref(), addr, data)
     }
 
-    fn read(&self, addr: u64, data: &mut [u8]) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn read(&self, addr: u64, data: &mut [u8]) {
+        let region = self.get_region_by_addr(addr);
         BytesAccess::read(region.deref(), addr, data)
     }
 }
@@ -126,37 +125,37 @@ impl BytesAccess for Space {
 impl SizedAccess for Space {}
 
 impl U16Access for Space {
-    fn write(&self, addr: u64, data: u16) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn write(&self, addr: u64, data: u16) {
+        let region = self.get_region_by_addr(addr);
         U16Access::write(region.deref(), addr, data)
     }
 
-    fn read(&self, addr: u64) -> region::Result<u16> {
-        let region = self.get_region_by_addr(addr)?;
+    fn read(&self, addr: u64) -> u16 {
+        let region = self.get_region_by_addr(addr);
         U16Access::read(region.deref(), addr)
     }
 }
 
 impl U32Access for Space {
-    fn write(&self, addr: u64, data: u32) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn write(&self, addr: u64, data: u32) {
+        let region = self.get_region_by_addr(addr);
         U32Access::write(region.deref(), addr, data)
     }
 
-    fn read(&self, addr: u64) -> region::Result<u32> {
-        let region = self.get_region_by_addr(addr)?;
+    fn read(&self, addr: u64) -> u32 {
+        let region = self.get_region_by_addr(addr);
         U32Access::read(region.deref(), addr)
     }
 }
 
 impl U64Access for Space {
-    fn write(&self, addr: u64, data: u64) -> region::Result<()> {
-        let region = self.get_region_by_addr(addr)?;
+    fn write(&self, addr: u64, data: u64) {
+        let region = self.get_region_by_addr(addr);
         U64Access::write(region.deref(), addr, data)
     }
 
-    fn read(&self, addr: u64) -> region::Result<u64> {
-        let region = self.get_region_by_addr(addr)?;
+    fn read(&self, addr: u64) -> u64 {
+        let region = self.get_region_by_addr(addr);
         U64Access::read(region.deref(), addr)
     }
 }
