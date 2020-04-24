@@ -66,8 +66,8 @@ fn bench_space_access(b: &mut Bencher) {
         *data
     };
     b.iter(|| {
-        U64Access::write(space.deref(), (get_addr() >> 3) << 3, 0xaa);
-        U64Access::read(space.deref(), (get_addr() >> 3) << 3);
+        space.write_u64((get_addr() >> 3) << 3, 0xaa).unwrap();
+        space.read_u64((get_addr() >> 3) << 3).unwrap();
     });
     #[cfg(feature = "memprof")]
         unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };

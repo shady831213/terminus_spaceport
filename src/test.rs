@@ -55,8 +55,8 @@ fn space_query() {
     let region = space.add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
     let region2 = space.add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
     let region3 = space.add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
-    assert_eq!(space.get_region_by_addr(region2.info.base + 8).info, region2.info);
-    assert_eq!(space.get_region_by_addr(region3.info.base + 2).info, region3.info);
+    assert_eq!(space.get_region_by_addr(region2.info.base + 8).unwrap().info, region2.info);
+    assert_eq!(space.get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
     let send_thread = {
         thread::spawn(|| {
             let r = SPACE_TABLE.get_space("space_query").get_region("region2").expect("not get region2");

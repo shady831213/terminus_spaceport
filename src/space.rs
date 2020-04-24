@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, BytesAccess, SizedAccess};
+use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, BytesAccess};
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
@@ -69,15 +69,65 @@ impl Space {
         }
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> Arc<Region> {
+    pub fn get_region_by_addr(&self, addr: u64) -> Result<Arc<Region>, u64> {
         let map = self.regions.lock().unwrap();
         if let Some(v) = map.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
-            Arc::clone(v)
+            Ok(Arc::clone(v))
         } else {
-            panic!(format!("invalid addr:{:#x}", addr))
+            Err(addr)
         }
     }
 
+    pub fn write_u8(&self, addr: u64, data: u8) -> Result<(), u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U8Access::write(region.deref(), addr, data))
+    }
+
+    pub fn read_u8(&self, addr: u64) -> Result<u8, u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U8Access::read(region.deref(), addr))
+    }
+
+    pub fn write_u16(&self, addr: u64, data: u16) -> Result<(), u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U16Access::write(region.deref(), addr, data))
+    }
+
+    pub fn read_u16(&self, addr: u64) -> Result<u16, u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U16Access::read(region.deref(), addr))
+    }
+
+    pub fn write_u32(&self, addr: u64, data: u32) -> Result<(), u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U32Access::write(region.deref(), addr, data))
+    }
+
+    pub fn read_u32(&self, addr: u64) -> Result<u32, u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U32Access::read(region.deref(), addr))
+    }
+
+    pub fn write_u64(&self, addr: u64, data: u64) -> Result<(), u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U64Access::write(region.deref(), addr, data))
+    }
+
+    pub fn read_u64(&self, addr: u64) -> Result<u64, u64> {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(U64Access::read(region.deref(), addr))
+    }
+
+    fn write_bytes(&self, addr: u64, data: &[u8])-> Result<(), u64>  {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(BytesAccess::write(region.deref(), addr, data))
+    }
+
+    fn read_bytes(&self, addr: u64, data: &mut [u8])-> Result<(), u64>  {
+        let region = self.get_region_by_addr(addr)?;
+        Ok(BytesAccess::read(region.deref(), addr, data))
+    }
+    
     pub fn clean(&self, name: &str, ptr: *const Box<Arc<Region>>) {
         self.ptrs.lock().unwrap()
             .entry(String::from(name)).or_insert(vec![])
@@ -97,69 +147,6 @@ impl Display for Space {
         Ok(())
     }
 }
-
-impl U8Access for Space {
-    fn write(&self, addr: u64, data: u8) {
-        let region = self.get_region_by_addr(addr);
-        U8Access::write(region.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> u8 {
-        let region = self.get_region_by_addr(addr);
-        U8Access::read(region.deref(), addr)
-    }
-}
-
-impl BytesAccess for Space {
-    fn write(&self, addr: u64, data: &[u8]) {
-        let region = self.get_region_by_addr(addr);
-        BytesAccess::write(region.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64, data: &mut [u8]) {
-        let region = self.get_region_by_addr(addr);
-        BytesAccess::read(region.deref(), addr, data)
-    }
-}
-
-impl SizedAccess for Space {}
-
-impl U16Access for Space {
-    fn write(&self, addr: u64, data: u16) {
-        let region = self.get_region_by_addr(addr);
-        U16Access::write(region.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> u16 {
-        let region = self.get_region_by_addr(addr);
-        U16Access::read(region.deref(), addr)
-    }
-}
-
-impl U32Access for Space {
-    fn write(&self, addr: u64, data: u32) {
-        let region = self.get_region_by_addr(addr);
-        U32Access::write(region.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> u32 {
-        let region = self.get_region_by_addr(addr);
-        U32Access::read(region.deref(), addr)
-    }
-}
-
-impl U64Access for Space {
-    fn write(&self, addr: u64, data: u64) {
-        let region = self.get_region_by_addr(addr);
-        U64Access::write(region.deref(), addr, data)
-    }
-
-    fn read(&self, addr: u64) -> u64 {
-        let region = self.get_region_by_addr(addr);
-        U64Access::read(region.deref(), addr)
-    }
-}
-
 
 lazy_static! {
     pub static ref SPACE_TABLE:SpaceTable = SpaceTable { spaces: Mutex::new(HashMap::new()) };
