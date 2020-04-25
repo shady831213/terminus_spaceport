@@ -10,7 +10,6 @@ use super::*;
 use std::marker::{Sync, Send, Sized};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::borrow::{BorrowMut, Borrow};
-use std::cell::RefCell;
 
 
 pub trait U8Access {
@@ -83,7 +82,7 @@ pub trait U64Access: BytesAccess {
     }
 }
 
-pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access {}
+pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access + Sync + Send{}
 
 #[derive(Default)]
 struct ModelHasher(u64);
@@ -101,22 +100,22 @@ impl Hasher for ModelHasher {
 }
 
 struct LazyModel {
-    inner: RefCell<HashMap<u64, u8, BuildHasherDefault<ModelHasher>>>
+    inner: Mutex<HashMap<u64, u8, BuildHasherDefault<ModelHasher>>>
 }
 
 impl LazyModel {
     fn new() -> LazyModel {
-        LazyModel { inner: RefCell::new(HashMap::default()) }
+        LazyModel { inner: Mutex::new(HashMap::default()) }
     }
 }
 
 impl U8Access for LazyModel {
     fn write(&self, addr: u64, data: u8) {
-        self.inner.borrow_mut().insert(addr, data);
+        self.inner.lock().unwrap().insert(addr, data);
     }
 
     fn read(&self, addr: u64) -> u8 {
-        if let Some(&v) = self.inner.borrow().get(&addr) {
+        if let Some(&v) = self.inner.lock().unwrap().get(&addr) {
             v
         } else {
             0
@@ -127,14 +126,14 @@ impl U8Access for LazyModel {
 impl BytesAccess for LazyModel {
     fn write(&self, addr: u64, data: &[u8]) {
         {
-            let mut inner = self.inner.borrow_mut();
+            let mut inner = self.inner.lock().unwrap();
             data.iter().enumerate().for_each(|(offset, d)| { inner.borrow_mut().insert(addr + offset as u64, *d); });
         }
     }
 
     fn read(&self, addr: u64, data: &mut [u8]) {
         {
-            let inner = self.inner.borrow();
+            let inner = self.inner.lock().unwrap();
             data.iter_mut().enumerate().for_each(|(offset, d)| {
                 *d = if let Some(&v) = inner.borrow().get(&(addr + offset as u64)) {
                     v
@@ -154,7 +153,7 @@ impl U64Access for LazyModel {}
 
 struct Model {
     info: MemInfo,
-    inner: RefCell<Box<[u8]>>,
+    inner: Mutex<Box<[u8]>>,
 }
 
 impl Model {
@@ -165,30 +164,30 @@ impl Model {
         }
         Model {
             info,
-            inner: RefCell::new(vec![0; size as usize].into_boxed_slice()),
+            inner: Mutex::new(vec![0; size as usize].into_boxed_slice()),
         }
     }
 }
 
 impl U8Access for Model {
     fn write(&self, addr: u64, data: u8) {
-        self.inner.borrow_mut()[(addr - self.info.base) as usize] = data;
+        self.inner.lock().unwrap()[(addr - self.info.base) as usize] = data;
     }
 
     fn read(&self, addr: u64) -> u8 {
-        self.inner.borrow()[(addr - self.info.base) as usize]
+        self.inner.lock().unwrap()[(addr - self.info.base) as usize]
     }
 }
 
 impl BytesAccess for Model {
     fn write(&self, addr: u64, data: &[u8]) {
         let offset = (addr - self.info.base) as usize;
-        self.inner.borrow_mut()[offset..offset + data.len()].copy_from_slice(data);
+        self.inner.lock().unwrap()[offset..offset + data.len()].copy_from_slice(data);
     }
 
     fn read(&self, addr: u64, data: &mut [u8]) {
         let offset = (addr - self.info.base) as usize;
-        data.copy_from_slice(&self.inner.borrow()[offset..offset + data.len()]);
+        data.copy_from_slice(&self.inner.lock().unwrap()[offset..offset + data.len()]);
     }
 }
 
@@ -213,7 +212,6 @@ impl Remap {
 }
 
 enum Memory {
-    Shared(Mutex<Arc<Region>>),
     Model(Model),
     LazyModel(LazyModel),
     Block(Arc<Heap>, Arc<Region>),
@@ -221,11 +219,7 @@ enum Memory {
     Remap(Remap),
     IO(Box<dyn IOAccess>),
 }
-//must wrapped Shared if use a shared memory!
-//TODO: need more considerations
-unsafe impl Send for Memory {}
 
-unsafe impl Sync for Memory {}
 impl Memory {
     fn get_type(&self) -> String {
         match self {
@@ -235,7 +229,6 @@ impl Memory {
             Memory::RootBlock(_) => "Block".to_string(),
             Memory::Remap(remap) => format!("Remap({}@{:#016x} -> {:#016x})", remap.region.memory.get_type(), remap.info.base, remap.info.base + remap.info.size),
             Memory::IO(_) => "IO".to_string(),
-            Memory::Shared(_) => "SharedRegion".to_string(),
         }
     }
 }
@@ -248,7 +241,6 @@ macro_rules! memory_access {
             Memory::Block(_, region) =>  $x::$f(region.deref(),$($p,)+),
             Memory::RootBlock(region) =>  $x::$f(region.deref(),$($p,)+),
             Memory::Remap(remap) => $x::$f(remap.region.deref(),$($p,)+),
-            Memory::Shared(region) => $x::$f(region.lock().unwrap().deref().deref(),$($p,)+),
         }
         }
 }
@@ -319,13 +311,6 @@ impl Region {
         Arc::new(Region {
             memory: Memory::IO(io),
             info: MemInfo { base: base, size: size },
-        })
-    }
-
-    pub fn shared(memory: &Arc<Region>) -> Arc<Region> {
-        Arc::new(Region {
-            memory: Memory::Shared(Mutex::new(memory.clone())),
-            info: memory.info,
         })
     }
 
