@@ -4,6 +4,7 @@ use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, B
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
+use std::ops::Bound::{Included, Unbounded};
 
 #[derive(Debug)]
 pub enum Error {
@@ -75,16 +76,11 @@ impl Space {
 
     pub fn get_region_by_addr(&self, addr: u64) -> Result<Arc<Region>, u64> {
         let map = self.regions.lock().unwrap();
-        if let Some((_, (_, v))) = map.range(..addr).last() {
+        if let Some((_, (_, v))) = map.range((Unbounded,Included(&addr))).last() {
             Ok(Arc::clone(v))
         } else {
             Err(addr)
         }
-        // if let Some(v) = map.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
-        //     Ok(Arc::clone(v))
-        // } else {
-        //     Err(addr)
-        // }
     }
 
     pub fn write_u8(&self, addr: u64, data: u8) -> Result<(), u64> {
