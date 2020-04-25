@@ -48,7 +48,7 @@ fn bench_model_access(b: &mut Bencher) {
 #[bench]
 fn bench_space_access(b: &mut Bencher) {
     let region = GHEAP.alloc(0x1_0000_0000, 1).unwrap();
-    let space = Arc::new(Space::new());
+    let mut space = Space::new();
     space.add_region("memory", &Region::remap(0, &region));
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];

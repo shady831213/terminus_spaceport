@@ -15,7 +15,7 @@ use crate::memory::prelude::*;
 
 #[test]
 fn space_drop() {
-    let space = Space::new();
+    let mut space = Space::new();
     let heap = &GHEAP;
     let region = space.add_region("region", &heap.alloc(188, 1024).unwrap()).unwrap();
     let &info = &region.info;
@@ -52,14 +52,14 @@ fn space_drop() {
 fn space_query() {
     let space = SPACE_TABLE.get_space("space_query");
     let heap = &GHEAP;
-    let region = space.add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
-    let region2 = space.add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
-    let region3 = space.add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
-    assert_eq!(space.get_region_by_addr(region2.info.base).unwrap().info, region2.info);
-    assert_eq!(space.get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
+    let region = space.lock().unwrap().add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
+    let region2 = space.lock().unwrap().add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
+    let region3 = space.lock().unwrap().add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
+    assert_eq!(space.lock().unwrap().get_region_by_addr(region2.info.base).unwrap().info, region2.info);
+    assert_eq!(space.lock().unwrap().get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
     let send_thread = {
         thread::spawn(|| {
-            let r = SPACE_TABLE.get_space("space_query").get_region("region2").expect("not get region2");
+            let r = SPACE_TABLE.get_space("space_query").lock().unwrap().get_region("region2").expect("not get region2");
             for i in 0..10 {
                 U8Access::write(r.deref(), r.info.base + 8, i);
             }
@@ -103,10 +103,10 @@ fn simple_device() {
     let (send_tx, send_rx) = channel();
     let (stop_tx, stop_rx) = channel::<()>();
     let region = Region::io(0, 20, Box::new(TestIODevice::new(recv_tx, send_rx)));
-    space.add_region("testIO", &region).unwrap();
+    space.lock().unwrap().add_region("testIO", &region).unwrap();
 
     thread::spawn(|| {
-        let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
+        let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
             U8Access::write(region.deref(), 10 - (i as u64), i);
@@ -114,7 +114,7 @@ fn simple_device() {
     });
 
     thread::spawn(|| {
-        let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
+        let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
             U8Access::write(region.deref(), 10 - (i as u64), i);
@@ -123,7 +123,7 @@ fn simple_device() {
 
     let recv_thread = {
         thread::spawn(|| {
-            let region = SPACE_TABLE.get_space("simple_device").get_region("testIO").unwrap();
+            let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
             for _ in 0..40 {
                 U8Access::read(region.deref(), 0);
             }
