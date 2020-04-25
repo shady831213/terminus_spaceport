@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, BTreeMap};
 use std::sync::{Arc, Mutex};
 use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, BytesAccess};
 use std::ops::Deref;
@@ -21,23 +21,23 @@ unsafe impl Sync for RegionCPtr {}
 
 //Space should be an owner of Regions
 pub struct Space {
-    regions: Mutex<HashMap<String, Arc<Region>>>,
+    regions: Mutex<BTreeMap<u64, (String, Arc<Region>)>>,
     //for ffi free
     ptrs: Mutex<HashMap<String, Vec<RegionCPtr>>>,
 }
 
 impl Space {
     pub fn new() -> Space {
-        Space { regions: Mutex::new(HashMap::new()), ptrs: Mutex::new(HashMap::new()) }
+        Space { regions: Mutex::new(BTreeMap::new()), ptrs: Mutex::new(HashMap::new()) }
     }
 
     pub fn add_region(&self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
         let mut map = self.regions.lock().unwrap();
         let check = || {
-            if let Some(_) = map.get(name) {
+            if let Some(_) = map.values().find(|(n, _)| { n == name }) {
                 return Err(Error::Renamed(name.to_string(), format!("region name {} has existed!", name)));
             }
-            if let Some(v) = map.iter().find(|(_, v)| {
+            if let Some(v) = map.values().find(|(_, v)| {
                 region.info.base >= v.info.base && region.info.base < v.info.base + v.info.size ||
                     region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size ||
                     v.info.base >= region.info.base && v.info.base < region.info.base + region.info.size ||
@@ -48,12 +48,16 @@ impl Space {
             Ok(())
         };
         check()?;
-        map.insert(String::from(name), Arc::clone(region));
+        map.insert(region.info.base, (name.to_string(), Arc::clone(region)));
         Ok(Arc::clone(region))
     }
 
     pub fn delete_region(&self, name: &str) {
-        self.regions.lock().unwrap().remove(name);
+        let mut map = self.regions.lock().unwrap();
+        let res = map.iter().find_map(|(k, (n, _))| { if n == name { Some(*k) } else { None } });
+        if let Some(k) = res {
+            map.remove(&k);
+        }
         let mut ptrs = self.ptrs.lock().unwrap();
         if let Some(ps) = ptrs.remove(name) {
             ps.iter().for_each(|RegionCPtr(ptr)| { std::mem::drop(unsafe { (*ptr).read() }) })
@@ -62,7 +66,7 @@ impl Space {
 
     pub fn get_region(&self, name: &str) -> Option<Arc<Region>> {
         let map = self.regions.lock().unwrap();
-        if let Some(v) = map.get(name) {
+        if let Some(v) = map.values().find_map(|(n, region)| { if n == name { Some(region) } else { None } }) {
             Some(Arc::clone(v))
         } else {
             None
@@ -71,11 +75,16 @@ impl Space {
 
     pub fn get_region_by_addr(&self, addr: u64) -> Result<Arc<Region>, u64> {
         let map = self.regions.lock().unwrap();
-        if let Some(v) = map.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
+        if let Some((_, (_, v))) = map.range(..addr).last() {
             Ok(Arc::clone(v))
         } else {
             Err(addr)
         }
+        // if let Some(v) = map.values().find(|v| { addr >= v.info.base && addr < v.info.base + v.info.size }) {
+        //     Ok(Arc::clone(v))
+        // } else {
+        //     Err(addr)
+        // }
     }
 
     pub fn write_u8(&self, addr: u64, data: u8) -> Result<(), u64> {
@@ -118,16 +127,16 @@ impl Space {
         Ok(U64Access::read(region.deref(), addr))
     }
 
-    fn write_bytes(&self, addr: u64, data: &[u8])-> Result<(), u64>  {
+    fn write_bytes(&self, addr: u64, data: &[u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::write(region.deref(), addr, data))
     }
 
-    fn read_bytes(&self, addr: u64, data: &mut [u8])-> Result<(), u64>  {
+    fn read_bytes(&self, addr: u64, data: &mut [u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::read(region.deref(), addr, data))
     }
-    
+
     pub fn clean(&self, name: &str, ptr: *const Box<Arc<Region>>) {
         self.ptrs.lock().unwrap()
             .entry(String::from(name)).or_insert(vec![])
@@ -137,11 +146,8 @@ impl Space {
 
 impl Display for Space {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        let mut map = self.regions.lock().unwrap();
-        let mut paires = map.iter_mut().collect::<Vec<_>>();
-        paires.sort_by(|l, r| { l.1.info.base.cmp(&r.1.info.base) });
         writeln!(f, "regions:")?;
-        for (name, region) in paires {
+        for (name, region) in self.regions.lock().unwrap().values() {
             writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", name, region.get_type(), region.info.base, region.info.base + region.info.size - 1)?;
         }
         Ok(())
