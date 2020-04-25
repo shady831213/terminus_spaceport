@@ -77,7 +77,7 @@ impl Space {
     pub fn get_region_by_addr(&self, addr: u64) -> Result<Arc<Region>, u64> {
         let map = self.regions.lock().unwrap();
         if let Some((_, (_, v))) = map.range((Unbounded,Included(&addr))).last() {
-            if addr < v.info.base + v.info.size && addr >= v.info.base {
+            if addr < v.info.base + v.info.size {
                 Ok(Arc::clone(v))
             } else {
                 Err(addr)
