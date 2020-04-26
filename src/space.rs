@@ -122,12 +122,12 @@ impl Space {
         Ok(U64Access::read(region.deref(), addr))
     }
 
-    fn write_bytes(&self, addr: u64, data: &[u8]) -> Result<(), u64> {
+    pub fn write_bytes(&self, addr: u64, data: &[u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::write(region.deref(), addr, data))
     }
 
-    fn read_bytes(&self, addr: u64, data: &mut [u8]) -> Result<(), u64> {
+    pub fn read_bytes(&self, addr: u64, data: &mut [u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::read(region.deref(), addr, data))
     }
