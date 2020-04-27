@@ -55,13 +55,13 @@ fn space_query() {
     let region = space.lock().unwrap().add_region("region", &heap.alloc(9, 1).unwrap()).unwrap();
     let region2 = space.lock().unwrap().add_region("region2", &Region::remap(0x80000000, &heap.alloc(9, 1).unwrap())).unwrap();
     let region3 = space.lock().unwrap().add_region("region3", &Region::remap(0x10000000, &region)).unwrap();
-    assert_eq!(space.lock().unwrap().get_region_by_addr(region2.info.base).unwrap().info, region2.info);
-    assert_eq!(space.lock().unwrap().get_region_by_addr(region3.info.base + 2).unwrap().info, region3.info);
+    assert_eq!(space.lock().unwrap().get_region_by_addr(&region2.info.base).unwrap().info, region2.info);
+    assert_eq!(space.lock().unwrap().get_region_by_addr(&(region3.info.base + 2)).unwrap().info, region3.info);
     let send_thread = {
         thread::spawn(|| {
             let r = SPACE_TABLE.get_space("space_query").lock().unwrap().get_region("region2").expect("not get region2");
             for i in 0..10 {
-                U8Access::write(r.deref(), r.info.base + 8, i);
+                U8Access::write(r.deref(), &(r.info.base + 8), i);
             }
         })
     };
@@ -84,14 +84,14 @@ impl TestIODevice {
 }
 
 impl U8Access for TestIODevice {
-    fn write(&self, addr: u64, data: u8) {
+    fn write(&self, addr: &u64, data: u8) {
         let tx = self.tx.lock().unwrap();
-        tx.send(addr as u8).unwrap();
+        tx.send(*addr as u8).unwrap();
         sleep(Duration::from_nanos(300));
         tx.send(data).unwrap();
     }
 
-    fn read(&self, _: u64) -> u8 {
+    fn read(&self, _: &u64) -> u8 {
         self.rx.lock().unwrap().recv().unwrap()
     }
 }
@@ -109,7 +109,7 @@ fn simple_device() {
         let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(region.deref(), 10 - (i as u64), i);
+            U8Access::write(region.deref(), &(10 - (i as u64)), i);
         }
     });
 
@@ -117,7 +117,7 @@ fn simple_device() {
         let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
         for i in 0..10 {
             sleep(Duration::from_micros(1));
-            U8Access::write(region.deref(), 10 - (i as u64), i);
+            U8Access::write(region.deref(), &(10 - (i as u64)), i);
         }
     });
 
@@ -125,7 +125,7 @@ fn simple_device() {
         thread::spawn(|| {
             let region = SPACE_TABLE.get_space("simple_device").lock().unwrap().get_region("testIO").unwrap();
             for _ in 0..40 {
-                U8Access::read(region.deref(), 0);
+                U8Access::read(region.deref(), &0);
             }
         })
     };

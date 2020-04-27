@@ -139,83 +139,83 @@ extern "C" fn __ts_map_region_partial(region: &Box<Arc<Region>>, base: u64, offs
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u8(region: &Box<Arc<Region>>, addr: u64, data: u8) {
-    U8Access::write(region.deref().deref(), addr, data)
+    U8Access::write(region.deref().deref(), &addr, data)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u16(region: &Box<Arc<Region>>, addr: u64, data: u16) {
-    U16Access::write(region.deref().deref(), addr, data)
+    U16Access::write(region.deref().deref(), &addr, data)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u32(region: &Box<Arc<Region>>, addr: u64, data: u32) {
-    U32Access::write(region.deref().deref(), addr, data)
+    U32Access::write(region.deref().deref(), &addr, data)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_write_u64(region: &Box<Arc<Region>>, addr: u64, data: u64) {
-    U64Access::write(region.deref().deref(), addr, data)
+    U64Access::write(region.deref().deref(), &addr, data)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u8(region: &Box<Arc<Region>>, addr: u64) -> u8 {
-    U8Access::read(region.deref().deref(), addr)
+    U8Access::read(region.deref().deref(), &addr)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u16(region: &Box<Arc<Region>>, addr: u64) -> u16 {
-    U16Access::read(region.deref().deref(), addr)
+    U16Access::read(region.deref().deref(), &addr)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u32(region: &Box<Arc<Region>>, addr: u64) -> u32 {
-    U32Access::read(region.deref().deref(), addr)
+    U32Access::read(region.deref().deref(), &addr)
 }
 
 #[no_mangle]
 extern "C" fn __ts_region_read_u64(region: &Box<Arc<Region>>, addr: u64) -> u64 {
-    U64Access::read(region.deref().deref(), addr)
+    U64Access::read(region.deref().deref(), &addr)
 }
 
 
 #[no_mangle]
 extern "C" fn __ts_space_write_u8(space: &Arc<Space>, addr: u64, data: u8) {
-    space.write_u8(addr, data).unwrap()
+    space.write_u8(&addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_write_u16(space: &Arc<Space>, addr: u64, data: u16) {
-    space.write_u16(addr, data).unwrap()
+    space.write_u16(&addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_write_u32(space: &Arc<Space>, addr: u64, data: u32) {
-    space.write_u32(addr, data).unwrap()
+    space.write_u32(&addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_write_u64(space: &Arc<Space>, addr: u64, data: u64) {
-    space.write_u64(addr, data).unwrap()
+    space.write_u64(&addr, data).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_read_u8(space: &Arc<Space>, addr: u64) -> u8 {
-    space.read_u8(addr).unwrap()
+    space.read_u8(&addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_read_u16(space: &Arc<Space>, addr: u64) -> u16 {
-    space.read_u16(addr).unwrap()
+    space.read_u16(&addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_read_u32(space: &Arc<Space>, addr: u64) -> u32 {
-    space.read_u32(addr).unwrap()
+    space.read_u32(&addr).unwrap()
 }
 
 #[no_mangle]
 extern "C" fn __ts_space_read_u64(space: &Arc<Space>, addr: u64) -> u64 {
-    space.read_u64(addr).unwrap()
+    space.read_u64(&addr).unwrap()
 }
 
 

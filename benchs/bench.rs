@@ -25,7 +25,7 @@ fn bench_model_access(b: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
     for _ in 0..MAX_RND {
-        addrs.push(rng.gen::<u64>() % 0x1_0000_0000)
+        addrs.push((rng.gen::<u64>() % 0x1_0000_0000 >> 3) << 3)
     }
     let mut i = 0;
     let mut get_addr = || {
@@ -35,11 +35,11 @@ fn bench_model_access(b: &mut Bencher) {
         } else {
             i = i + 1
         }
-        *data
+        data
     };
     b.iter(|| {
-        U64Access::write(region.deref(), (get_addr() >> 3) << 3, 0xaa);
-        U64Access::read(region.deref(), (get_addr() >> 3) << 3);
+        U64Access::write(region.deref(), get_addr(), 0xaa);
+        U64Access::read(region.deref(), get_addr());
     });
     #[cfg(feature = "memprof")]
         unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
@@ -53,7 +53,7 @@ fn bench_space_access(b: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
     for _ in 0..MAX_RND {
-        addrs.push(rng.gen::<u64>() % 0x1_0000_0000)
+        addrs.push((rng.gen::<u64>() % 0x1_0000_0000 >> 3) << 3)
     }
     let mut i = 0;
     let mut get_addr = || {
@@ -63,12 +63,12 @@ fn bench_space_access(b: &mut Bencher) {
         } else {
             i = i + 1
         }
-        *data
+        data
     };
     b.iter(|| {
-        space.write_bytes((get_addr() >> 3) << 3, &0xaau64.to_le_bytes()).unwrap();
-        let mut data = [0u8;8];
-        space.read_bytes((get_addr() >> 3) << 3, &mut data).unwrap();
+        space.write_bytes(get_addr(), &0xaau64.to_le_bytes()).unwrap();
+        let mut data = [0u8; 8];
+        space.read_bytes(get_addr(), &mut data).unwrap();
     });
     #[cfg(feature = "memprof")]
         unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };

@@ -70,64 +70,64 @@ impl Space {
         }
     }
 
-    pub fn get_region_by_addr(&self, addr: u64) -> Result<Arc<Region>, u64> {
-        if let Some((_, (_, v))) = self.regions.range((Unbounded,Included(&addr))).last() {
-            if addr < v.info.base + v.info.size {
+    pub fn get_region_by_addr(&self, addr: &u64) -> Result<Arc<Region>, u64> {
+        if let Some((_, (_, v))) = self.regions.range((Unbounded, Included(*addr))).last() {
+            if *addr < v.info.base + v.info.size {
                 Ok(Arc::clone(v))
             } else {
-                Err(addr)
+                Err(*addr)
             }
         } else {
-            Err(addr)
+            Err(*addr)
         }
     }
 
-    pub fn write_u8(&self, addr: u64, data: u8) -> Result<(), u64> {
+    pub fn write_u8(&self, addr: &u64, data: u8) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U8Access::write(region.deref(), addr, data))
     }
 
-    pub fn read_u8(&self, addr: u64) -> Result<u8, u64> {
+    pub fn read_u8(&self, addr: &u64) -> Result<u8, u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U8Access::read(region.deref(), addr))
     }
 
-    pub fn write_u16(&self, addr: u64, data: u16) -> Result<(), u64> {
+    pub fn write_u16(&self, addr: &u64, data: u16) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U16Access::write(region.deref(), addr, data))
     }
 
-    pub fn read_u16(&self, addr: u64) -> Result<u16, u64> {
+    pub fn read_u16(&self, addr: &u64) -> Result<u16, u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U16Access::read(region.deref(), addr))
     }
 
-    pub fn write_u32(&self, addr: u64, data: u32) -> Result<(), u64> {
+    pub fn write_u32(&self, addr: &u64, data: u32) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U32Access::write(region.deref(), addr, data))
     }
 
-    pub fn read_u32(&self, addr: u64) -> Result<u32, u64> {
+    pub fn read_u32(&self, addr: &u64) -> Result<u32, u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U32Access::read(region.deref(), addr))
     }
 
-    pub fn write_u64(&self, addr: u64, data: u64) -> Result<(), u64> {
+    pub fn write_u64(&self, addr: &u64, data: u64) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U64Access::write(region.deref(), addr, data))
     }
 
-    pub fn read_u64(&self, addr: u64) -> Result<u64, u64> {
+    pub fn read_u64(&self, addr: &u64) -> Result<u64, u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(U64Access::read(region.deref(), addr))
     }
 
-    pub fn write_bytes(&self, addr: u64, data: &[u8]) -> Result<(), u64> {
+    pub fn write_bytes(&self, addr: &u64, data: &[u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::write(region.deref(), addr, data))
     }
 
-    pub fn read_bytes(&self, addr: u64, data: &mut [u8]) -> Result<(), u64> {
+    pub fn read_bytes(&self, addr: &u64, data: &mut [u8]) -> Result<(), u64> {
         let region = self.get_region_by_addr(addr)?;
         Ok(BytesAccess::read(region.deref(), addr, data))
     }

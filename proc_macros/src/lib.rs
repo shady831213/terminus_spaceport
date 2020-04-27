@@ -82,47 +82,47 @@ impl AccessTrait {
         let read_msg = self.msg(name, "read");
         let content = match self {
             AccessTrait::U8 => quote! {
-                    fn write(&self, addr: u64, _: u8){
+                    fn write(&self, addr: &u64, _: u8){
                         panic!(#write_msg)
                     }
 
-                    fn read(&self, addr: u64) -> u8 {
+                    fn read(&self, addr: &u64) -> u8 {
                         panic!(#read_msg)
                     }
             },
             AccessTrait::U16 => quote! {
-                fn write(&self, addr: u64, _: u16){
+                fn write(&self, addr: &u64, _: u16){
                         panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> u16 {
+                fn read(&self, addr: &u64)-> u16 {
                         panic!(#read_msg)
                 }
             },
             AccessTrait::U32 => quote! {
-                fn write(&self, addr: u64, _: u32){
+                fn write(&self, addr: &u64, _: u32){
                         panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> u32 {
+                fn read(&self, addr: &u64)-> u32 {
                         panic!(#read_msg)
                 }
             },
             AccessTrait::U64 => quote! {
-                fn write(&self, addr: u64, _: u64){
+                fn write(&self, addr: &u64, _: u64){
                         panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64)-> u64 {
+                fn read(&self, addr: &u64)-> u64 {
                         panic!(#read_msg)
                 }
             },
             AccessTrait::Bytes => quote! {
-                fn write(&self, addr: u64, _: &[u8]){
+                fn write(&self, addr: &u64, _: &[u8]){
                         panic!(#write_msg)
                 }
 
-                fn read(&self, addr: u64, _: &mut [u8]) {
+                fn read(&self, addr: &u64, _: &mut [u8]) {
                         panic!(#read_msg)
                 }
             },
