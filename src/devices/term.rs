@@ -4,7 +4,7 @@ extern crate ctrlc;
 
 use std::{io, fs};
 use std::io::{Stdout, Stdin, Stderr};
-use termios::{Termios, TCSANOW, ECHO, ICANON, tcsetattr};
+use termios::{Termios, TCSANOW, ICANON, tcsetattr};
 use std::os::unix::io::{AsRawFd, RawFd};
 
 pub struct Term(Termios, libc::c_int, RawFd);
@@ -23,7 +23,7 @@ impl Term {
         unsafe { libc::fcntl(stdin_fd, libc::F_SETFL, libc::O_NONBLOCK) };
         let mut termios = Termios::from_fd(stdin_fd)?;
         let origin_termios = termios;
-        termios.c_lflag &= !(ICANON | ECHO);
+        termios.c_lflag &= !ICANON;
         tcsetattr(stdin_fd, TCSANOW, &termios)?;
         Ok(Term(
             origin_termios,
