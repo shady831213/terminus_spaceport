@@ -1,5 +1,4 @@
 use crate::memory::region::{Region, GHEAP, Heap, SizedAccess, U16Access};
-use crate::memory::region;
 use std::{mem, result};
 use std::ops::Deref;
 use std::cmp::min;

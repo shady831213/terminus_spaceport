@@ -2,7 +2,6 @@ use crate::memory::region::Region;
 use crate::memory::region::GHEAP;
 use crate::memory::region::Heap;
 use crate::memory::MemInfo;
-use crate::memory::region;
 use crate::space::*;
 use std::sync::Mutex;
 use std::sync::mpsc::{channel, Sender, Receiver};

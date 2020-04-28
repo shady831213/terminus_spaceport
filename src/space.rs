@@ -1,10 +1,26 @@
-use std::collections::{HashMap, BTreeMap};
+extern crate intrusive_collections;
+
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, BytesAccess};
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
-use std::ops::Bound::{Included, Unbounded};
+use intrusive_collections::{RBTreeLink, KeyAdapter, intrusive_adapter, Bound};
+use intrusive_collections::rbtree::RBTree;
+
+struct SpaceElem {
+    link: RBTreeLink,
+    key: u64,
+    value: (String, Arc<Region>),
+}
+
+intrusive_adapter!(Adapter = Box<SpaceElem>:SpaceElem {link:RBTreeLink});
+
+impl<'a> KeyAdapter<'a> for Adapter {
+    type Key = &'a u64;
+    fn get_key(&self, s: &'a SpaceElem) -> &'a u64 { &s.key }
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -22,40 +38,47 @@ unsafe impl Sync for RegionCPtr {}
 
 //Space should be an owner of Regions
 pub struct Space {
-    regions: BTreeMap<u64, (String, Arc<Region>)>,
+    regions: RBTree<Adapter>,
     //for ffi free
     ptrs: HashMap<String, Vec<RegionCPtr>>,
 }
 
 impl Space {
     pub fn new() -> Space {
-        Space { regions: BTreeMap::new(), ptrs: HashMap::new() }
+        Space { regions: RBTree::new(Adapter::default()), ptrs: HashMap::new() }
     }
 
     pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
         let check = || {
-            if let Some(_) = self.regions.values().find(|(n, _)| { n == name }) {
+            if let Some(_) = self.regions.iter().find(|a| { a.value.0 == name }) {
                 return Err(Error::Renamed(name.to_string(), format!("region name {} has existed!", name)));
             }
-            if let Some(v) = self.regions.values().find(|(_, v)| {
-                region.info.base >= v.info.base && region.info.base < v.info.base + v.info.size ||
-                    region.info.base + region.info.size - 1 >= v.info.base && region.info.base + region.info.size - 1 < v.info.base + v.info.size ||
-                    v.info.base >= region.info.base && v.info.base < region.info.base + region.info.size ||
-                    v.info.base + v.info.size - 1 >= region.info.base && v.info.base + v.info.size - 1 < region.info.base + region.info.size
+            if let Some(v) = self.regions.iter().find(|a| {
+                region.info.base >= a.value.1.info.base && region.info.base < a.value.1.info.base + a.value.1.info.size ||
+                    region.info.base + region.info.size - 1 >= a.value.1.info.base && region.info.base + region.info.size - 1 < a.value.1.info.base + a.value.1.info.size ||
+                    a.value.1.info.base >= region.info.base && a.value.1.info.base < region.info.base + region.info.size ||
+                    a.value.1.info.base + a.value.1.info.size - 1 >= region.info.base && a.value.1.info.base + a.value.1.info.size - 1 < region.info.base + region.info.size
             }) {
-                return Err(Error::Overlap(v.0.to_string(), format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.0, v.1.deref().info)));
+                return Err(Error::Overlap(v.value.0.to_string(), format!("region [{} : {:?}] is overlapped with [{} : {:?}]!", name, region.deref().info, v.value.0, v.value.1.deref().info)));
             }
             Ok(())
         };
         check()?;
-        self.regions.insert(region.info.base, (name.to_string(), Arc::clone(region)));
+        // self.regions.insert(region.info.base, (name.to_string(), Arc::clone(region)));
+        self.regions.insert(Box::new(SpaceElem { link: RBTreeLink::new(), key: region.info.base, value: (name.to_string(), Arc::clone(region)) }));
         Ok(Arc::clone(region))
     }
 
     pub fn delete_region(&mut self, name: &str) {
-        let res = self.regions.iter().find_map(|(k, (n, _))| { if n == name { Some(*k) } else { None } });
-        if let Some(k) = res {
-            self.regions.remove(&k);
+        let mut cursor = self.regions.front_mut();
+        while !cursor.is_null() {
+            if let Some(e) = cursor.get() {
+                if e.value.0 == name {
+                    cursor.remove();
+                    break
+                }
+            }
+            cursor.move_next();
         }
         if let Some(ps) = self.ptrs.remove(name) {
             ps.iter().for_each(|RegionCPtr(ptr)| { std::mem::drop(unsafe { (*ptr).read() }) })
@@ -63,7 +86,7 @@ impl Space {
     }
 
     pub fn get_region(&self, name: &str) -> Option<Arc<Region>> {
-        if let Some(v) = self.regions.values().find_map(|(n, region)| { if n == name { Some(region) } else { None } }) {
+        if let Some(v) = self.regions.iter().find_map(|a| { if a.value.0 == name { Some(&a.value.1) } else { None } }) {
             Some(Arc::clone(v))
         } else {
             None
@@ -71,9 +94,9 @@ impl Space {
     }
 
     pub fn get_region_by_addr(&self, addr: &u64) -> Result<Arc<Region>, u64> {
-        if let Some((_, (_, v))) = self.regions.range((Unbounded, Included(*addr))).last() {
-            if *addr < v.info.base + v.info.size {
-                Ok(Arc::clone(v))
+        if let Some(e) = self.regions.upper_bound(Bound::Included(addr)).get(){
+            if *addr < e.value.1.info.base + e.value.1.info.size {
+                Ok(Arc::clone(&e.value.1))
             } else {
                 Err(*addr)
             }
@@ -141,8 +164,8 @@ impl Space {
 impl Display for Space {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         writeln!(f, "regions:")?;
-        for (name, region) in self.regions.values() {
-            writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", name, region.get_type(), region.info.base, region.info.base + region.info.size - 1)?;
+        for e in self.regions.iter() {
+            writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", e.value.0, e.value.1.get_type(), e.value.1.info.base, e.value.1.info.base + e.value.1.info.size - 1)?;
         }
         Ok(())
     }
