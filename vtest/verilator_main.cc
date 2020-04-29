@@ -13,6 +13,15 @@ extern "C" {
 }
 static uint64_t trace_count = 0;
 
+static void* space = tsc_space();
+
+extern "C" {
+    void* root_space() {
+        return space;
+    }
+}
+
+
 double sc_time_stamp()
 {
   return trace_count;
@@ -32,8 +41,8 @@ int main(int argc, char** argv)
   void* main_memory = tsc_lazy_root_region(16ul, 8ul);
   void* rom = tsc_root_region(8ul, 8ul);
 
-  tsc_add_region(tsc_space("root"), "main_memory", tsc_map_region(main_memory, 0x800000000ul));
-  tsc_add_region(tsc_space("root"), "rom",  tsc_map_region(rom, 0x100000000ul));
+  tsc_add_region(space, "main_memory", tsc_map_region(main_memory, 0x800000000ul));
+  tsc_add_region(space, "rom",  tsc_map_region(rom, 0x100000000ul));
 
   std::cout << std::hex << "write rom @" << tsc_region_info(rom)->base << std::endl;
   tsc_region_write_u32(rom, tsc_region_info(rom)->base, 0x5a5aa5a5);
@@ -58,8 +67,8 @@ int main(int argc, char** argv)
 
   tsc_free_region(main_memory);
   tsc_free_region(rom);
-  tsc_delete_region(tsc_space("root"), "main_memory");
-  tsc_delete_region(tsc_space("root"), "rom");
+  tsc_delete_region(space, "main_memory");
+  tsc_delete_region(space, "rom");
 
   return ret;
 }

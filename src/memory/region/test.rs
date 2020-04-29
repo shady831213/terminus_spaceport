@@ -29,7 +29,7 @@ fn region_drop() {
 
 #[test]
 fn region_access() {
-    let heap = &&GHEAP;
+    let heap = &GHEAP;
     {
         let region = heap.alloc(9, 8).unwrap();
         let remap = Region::remap(0x80000000, &region);

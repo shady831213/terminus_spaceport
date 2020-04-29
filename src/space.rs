@@ -1,18 +1,18 @@
 extern crate intrusive_collections;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use crate::memory::region::{Region, U8Access, U16Access, U32Access, U64Access, BytesAccess};
 use std::ops::Deref;
 use std::fmt::{Display, Formatter};
 use std::fmt;
 use intrusive_collections::{RBTreeLink, KeyAdapter, intrusive_adapter, Bound};
 use intrusive_collections::rbtree::RBTree;
+use std::rc::Rc;
 
 struct SpaceElem {
     link: RBTreeLink,
     key: u64,
-    value: (String, Arc<Region>),
+    value: (String, Rc<Region>),
 }
 
 intrusive_adapter!(Adapter = Box<SpaceElem>:SpaceElem {link:RBTreeLink});
@@ -29,7 +29,7 @@ pub enum Error {
 }
 
 
-struct RegionCPtr(*const Box<Arc<Region>>);
+struct RegionCPtr(*const Box<Rc<Region>>);
 
 unsafe impl Send for RegionCPtr {}
 
@@ -48,7 +48,7 @@ impl Space {
         Space { regions: RBTree::new(Adapter::default()), ptrs: HashMap::new() }
     }
 
-    pub fn add_region(&mut self, name: &str, region: &Arc<Region>) -> Result<Arc<Region>, Error> {
+    pub fn add_region(&mut self, name: &str, region: &Rc<Region>) -> Result<Rc<Region>, Error> {
         let check = || {
             if let Some(_) = self.regions.iter().find(|a| { a.value.0 == name }) {
                 return Err(Error::Renamed(name.to_string(), format!("region name {} has existed!", name)));
@@ -64,9 +64,9 @@ impl Space {
             Ok(())
         };
         check()?;
-        // self.regions.insert(region.info.base, (name.to_string(), Arc::clone(region)));
-        self.regions.insert(Box::new(SpaceElem { link: RBTreeLink::new(), key: region.info.base, value: (name.to_string(), Arc::clone(region)) }));
-        Ok(Arc::clone(region))
+        // self.regions.insert(region.info.base, (name.to_string(), Rc::clone(region)));
+        self.regions.insert(Box::new(SpaceElem { link: RBTreeLink::new(), key: region.info.base, value: (name.to_string(), Rc::clone(region)) }));
+        Ok(Rc::clone(region))
     }
 
     pub fn delete_region(&mut self, name: &str) {
@@ -85,18 +85,18 @@ impl Space {
         }
     }
 
-    pub fn get_region(&self, name: &str) -> Option<Arc<Region>> {
+    pub fn get_region(&self, name: &str) -> Option<Rc<Region>> {
         if let Some(v) = self.regions.iter().find_map(|a| { if a.value.0 == name { Some(&a.value.1) } else { None } }) {
-            Some(Arc::clone(v))
+            Some(Rc::clone(v))
         } else {
             None
         }
     }
 
-    pub fn get_region_by_addr(&self, addr: &u64) -> Result<Arc<Region>, u64> {
+    pub fn get_region_by_addr(&self, addr: &u64) -> Result<Rc<Region>, u64> {
         if let Some(e) = self.regions.upper_bound(Bound::Included(addr)).get(){
             if *addr < e.value.1.info.base + e.value.1.info.size {
-                Ok(Arc::clone(&e.value.1))
+                Ok(Rc::clone(&e.value.1))
             } else {
                 Err(*addr)
             }
@@ -155,7 +155,7 @@ impl Space {
         Ok(BytesAccess::read(region.deref(), addr, data))
     }
 
-    pub fn clean(&mut self, name: &str, ptr: *const Box<Arc<Region>>) {
+    pub fn clean(&mut self, name: &str, ptr: *const Box<Rc<Region>>) {
         self.ptrs.entry(String::from(name)).or_insert(vec![])
             .push(RegionCPtr(ptr))
     }
@@ -168,26 +168,5 @@ impl Display for Space {
             writeln!(f, "   {:<10}({:^13})  : {:#016x} -> {:#016x}", e.value.0, e.value.1.get_type(), e.value.1.info.base, e.value.1.info.base + e.value.1.info.size - 1)?;
         }
         Ok(())
-    }
-}
-
-lazy_static! {
-    pub static ref SPACE_TABLE:SpaceTable = SpaceTable { spaces: Mutex::new(HashMap::new()) };
-}
-
-pub struct SpaceTable {
-    spaces: Mutex<HashMap<String, Arc<Mutex<Space>>>>,
-}
-
-impl SpaceTable {
-    pub fn get_space(&self, name: &str) -> Arc<Mutex<Space>> {
-        let mut map = self.spaces.lock().unwrap();
-        map.entry(String::from(name))
-            .or_insert_with(|| {
-                if name == "space_query" {
-                    println!("create space_query")
-                }
-                Arc::new(Mutex::new(Space::new()))
-            }).clone()
     }
 }

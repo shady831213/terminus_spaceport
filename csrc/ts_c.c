@@ -18,8 +18,8 @@ void tsc_free_addr(const void* allocator, const uint64_t addr) {
     __ts_free_addr(allocator, addr);
 }
 
-void* tsc_space(const char* name) {
-    return __ts_space(name);
+void* tsc_space() {
+    return __ts_space();
 }
 
 void tsc_delete_region(const void* space, const char* name) {

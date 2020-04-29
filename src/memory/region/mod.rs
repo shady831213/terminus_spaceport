@@ -2,14 +2,14 @@
 mod test;
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use super::allocator::LockedAllocator;
 use std::mem::size_of;
 use std::ops::Deref;
 use super::*;
-use std::marker::{Sync, Send, Sized};
+use std::marker::Sized;
 use std::hash::{BuildHasherDefault, Hasher};
-use std::borrow::{BorrowMut, Borrow};
+use std::rc::Rc;
+use std::cell::RefCell;
+use crate::memory::allocator::{Allocator, LockedAllocator};
 
 
 pub trait BytesAccess {
@@ -74,7 +74,7 @@ pub trait U64Access: BytesAccess {
     }
 }
 
-pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access + Sync + Send {}
+pub trait IOAccess: U8Access + BytesAccess + U16Access + U32Access + U64Access {}
 
 #[derive(Default)]
 struct ModelHasher(u64);
@@ -92,22 +92,22 @@ impl Hasher for ModelHasher {
 }
 
 struct LazyModel {
-    inner: Mutex<HashMap<u64, u8, BuildHasherDefault<ModelHasher>>>
+    inner: RefCell<HashMap<u64, u8, BuildHasherDefault<ModelHasher>>>
 }
 
 impl LazyModel {
     fn new() -> LazyModel {
-        LazyModel { inner: Mutex::new(HashMap::default()) }
+        LazyModel { inner: RefCell::new(HashMap::default()) }
     }
 }
 
 impl U8Access for LazyModel {
     fn write(&self, addr: &u64, data: u8) {
-        self.inner.lock().unwrap().insert(*addr, data);
+        self.inner.borrow_mut().insert(*addr, data);
     }
 
     fn read(&self, addr: &u64) -> u8 {
-        if let Some(&v) = self.inner.lock().unwrap().get(addr) {
+        if let Some(&v) = self.inner.borrow().get(addr) {
             v
         } else {
             0
@@ -118,16 +118,14 @@ impl U8Access for LazyModel {
 impl BytesAccess for LazyModel {
     fn write(&self, addr: &u64, data: &[u8]) {
         {
-            let mut inner = self.inner.lock().unwrap();
-            data.iter().enumerate().for_each(|(offset, d)| { inner.borrow_mut().insert(*addr + offset as u64, *d); });
+            data.iter().enumerate().for_each(|(offset, d)| { self.inner.borrow_mut().insert(*addr + offset as u64, *d); });
         }
     }
 
     fn read(&self, addr: &u64, data: &mut [u8]) {
         {
-            let inner = self.inner.lock().unwrap();
             data.iter_mut().enumerate().for_each(|(offset, d)| {
-                *d = if let Some(&v) = inner.borrow().get(&(*addr + offset as u64)) {
+                *d = if let Some(&v) = self.inner.borrow().get(&(*addr + offset as u64)) {
                     v
                 } else {
                     0
@@ -145,7 +143,7 @@ impl U64Access for LazyModel {}
 
 struct Model {
     info: MemInfo,
-    inner: Mutex<Box<[u8]>>,
+    inner: RefCell<Box<[u8]>>,
 }
 
 impl Model {
@@ -156,30 +154,30 @@ impl Model {
         }
         Model {
             info,
-            inner: Mutex::new(vec![0; size as usize].into_boxed_slice()),
+            inner: RefCell::new(vec![0; size as usize].into_boxed_slice()),
         }
     }
 }
 
 impl U8Access for Model {
     fn write(&self, addr: &u64, data: u8) {
-        self.inner.lock().unwrap()[(*addr - self.info.base) as usize] = data;
+        self.inner.borrow_mut()[(*addr - self.info.base) as usize] = data;
     }
 
     fn read(&self, addr: &u64) -> u8 {
-        self.inner.lock().unwrap()[(*addr - self.info.base) as usize]
+        self.inner.borrow()[(*addr - self.info.base) as usize]
     }
 }
 
 impl BytesAccess for Model {
     fn write(&self, addr: &u64, data: &[u8]) {
         let offset = (*addr - self.info.base) as usize;
-        self.inner.lock().unwrap()[offset..offset + data.len()].copy_from_slice(data);
+        self.inner.borrow_mut()[offset..offset + data.len()].copy_from_slice(data);
     }
 
     fn read(&self, addr: &u64, data: &mut [u8]) {
         let offset = (*addr - self.info.base) as usize;
-        data.copy_from_slice(&self.inner.lock().unwrap()[offset..offset + data.len()]);
+        data.copy_from_slice(&self.inner.borrow()[offset..offset + data.len()]);
     }
 }
 
@@ -190,14 +188,14 @@ impl U32Access for Model {}
 impl U64Access for Model {}
 
 struct Remap {
-    region: Arc<Region>,
+    region: Rc<Region>,
     info: MemInfo,
 }
 
 impl Remap {
-    fn new(region: &Arc<Region>, info: MemInfo) -> Remap {
+    fn new(region: &Rc<Region>, info: MemInfo) -> Remap {
         Remap {
-            region: Arc::clone(region),
+            region: Rc::clone(region),
             info,
         }
     }
@@ -206,7 +204,7 @@ impl Remap {
 enum Memory {
     Model(Model),
     LazyModel(LazyModel),
-    Block(Arc<Heap>, Arc<Region>),
+    Block(Rc<Heap>, Rc<Region>),
     RootBlock(Box<Region>),
     Remap(Remap),
     IO(Box<dyn IOAccess>),
@@ -299,8 +297,8 @@ impl Region {
         self.memory.get_type()
     }
 
-    pub fn io(base: u64, size: u64, io: Box<dyn IOAccess>) -> Arc<Region> {
-        Arc::new(Region {
+    pub fn io(base: u64, size: u64, io: Box<dyn IOAccess>) -> Rc<Region> {
+        Rc::new(Region {
             memory: Memory::IO(io),
             info: MemInfo { base: base, size: size },
         })
@@ -320,33 +318,33 @@ impl Region {
         }
     }
 
-    fn block(base: u64, size: u64, heap: &Arc<Heap>, memory: &Arc<Region>) -> Arc<Region> {
-        Arc::new(Region {
-            memory: Memory::Block(Arc::clone(heap), Arc::clone(memory)),
+    fn block(base: u64, size: u64, heap: &Rc<Heap>, memory: &Rc<Region>) -> Rc<Region> {
+        Rc::new(Region {
+            memory: Memory::Block(Rc::clone(heap), Rc::clone(memory)),
             info: MemInfo { base: base, size: size },
         })
     }
 
-    fn root_block(base: u64, size: u64, memory: Region) -> Arc<Region> {
-        Arc::new(Region {
+    fn root_block(base: u64, size: u64, memory: Region) -> Rc<Region> {
+        Rc::new(Region {
             memory: Memory::RootBlock(Box::new(memory)),
             info: MemInfo { base: base, size: size },
         })
     }
 
-    pub fn remap(base: u64, memory: &Arc<Region>) -> Arc<Region> {
+    pub fn remap(base: u64, memory: &Rc<Region>) -> Rc<Region> {
         let info = memory.info;
-        Arc::new(Region {
+        Rc::new(Region {
             memory: Memory::Remap(Remap::new(memory, info)),
             info: MemInfo { base: base, size: info.size },
         })
     }
 
-    pub fn remap_partial(base: u64, memory: &Arc<Region>, offset: u64, size: u64) -> Arc<Region> {
+    pub fn remap_partial(base: u64, memory: &Rc<Region>, offset: u64, size: u64) -> Rc<Region> {
         assert!(offset + size <= memory.info.size);
         assert!(offset & 0x7 == 0);
         let info = memory.info;
-        Arc::new(Region {
+        Rc::new(Region {
             memory: Memory::Remap(Remap::new(memory, MemInfo { base: info.base + offset, size: size })),
             info: MemInfo { base: base, size: size },
         })
@@ -413,7 +411,6 @@ impl U16Access for Region {
             U16Access::read(&self.memory, a)
         } else {
             U16Access::read(&self.memory, addr)
-
         }
     }
 }
@@ -432,7 +429,6 @@ impl U32Access for Region {
             U32Access::read(&self.memory, a)
         } else {
             U32Access::read(&self.memory, addr)
-
         }
     }
 }
@@ -474,40 +470,40 @@ trait Free {
 #[cfg(test)]
 #[repr(C)]
 pub struct Heap {
-    memory: Arc<Region>,
-    pub allocator: LockedAllocator,
+    memory: Rc<Region>,
+    pub allocator: RefCell<Allocator>,
 }
 
 #[cfg(not(test))]
 #[repr(C)]
 pub struct Heap {
-    memory: Arc<Region>,
-    allocator: LockedAllocator,
+    memory: Rc<Region>,
+    allocator: RefCell<Allocator>,
 }
 
 impl Heap {
-    pub fn new(memory: &Arc<Region>) -> Arc<Heap> {
-        Arc::new(Heap {
-            memory: Arc::clone(memory),
-            allocator: LockedAllocator::new(memory.info.base, memory.info.size),
+    pub fn new(memory: &Rc<Region>) -> Rc<Heap> {
+        Rc::new(Heap {
+            memory: Rc::clone(memory),
+            allocator: RefCell::new(Allocator::new(memory.info.base, memory.info.size)),
         })
     }
 
-    pub fn alloc(self: &Arc<Self>, size: u64, align: u64) -> std::result::Result<Arc<Region>, String> {
-        if let Some(info) = self.allocator.alloc(size, align) {
+    pub fn alloc(self: &Rc<Self>, size: u64, align: u64) -> std::result::Result<Rc<Region>, String> {
+        if let Some(info) = self.allocator.borrow_mut().alloc(size, align) {
             Ok(Region::block(info.base, info.size, self, &self.memory))
         } else {
             Err("oom!".to_string())
         }
     }
-    pub fn get_region(&self) -> &Arc<Region> {
+    pub fn get_region(&self) -> &Rc<Region> {
         &self.memory
     }
 }
 
 impl Free for Heap {
     fn free(&self, addr: u64) {
-        self.allocator.free(addr)
+        self.allocator.borrow_mut().free(addr)
     }
 }
 
@@ -526,7 +522,7 @@ pub struct GlobalHeap {
 }
 
 impl GlobalHeap {
-    pub fn lazy_alloc(&self, size: u64, align: u64) -> std::result::Result<Arc<Region>, String> {
+    pub fn lazy_alloc(&self, size: u64, align: u64) -> std::result::Result<Rc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
             Ok(Region::root_block(info.base, info.size, Region::lazy_model(info.base, info.size)))
         } else {
@@ -534,7 +530,7 @@ impl GlobalHeap {
         }
     }
 
-    pub fn alloc(&self, size: u64, align: u64) -> std::result::Result<Arc<Region>, String> {
+    pub fn alloc(&self, size: u64, align: u64) -> std::result::Result<Rc<Region>, String> {
         if let Some(info) = self.allocator.alloc(size, align) {
             Ok(Region::root_block(info.base, info.size, Region::model(info.base, info.size)))
         } else {

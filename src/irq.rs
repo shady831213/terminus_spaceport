@@ -1,5 +1,6 @@
 use std::result;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,14 +24,14 @@ impl IrqBit {
     }
 }
 
-struct IrqHandler(Option<Box<dyn FnMut() + 'static + Send>>);
+struct IrqHandler(Option<Box<dyn FnMut() + 'static>>);
 
 impl IrqHandler {
     fn new() -> IrqHandler {
         IrqHandler(None)
     }
 
-    fn bind_handler<F: for<'r> FnMut() + 'static + Send>(&mut self, handler: F) {
+    fn bind_handler<F: for<'r> FnMut() + 'static>(&mut self, handler: F) {
         self.0 = Some(Box::new(handler));
     }
 
@@ -193,7 +194,7 @@ pub struct IrqVecBinder {
 }
 
 impl IrqVecBinder {
-    pub fn bind<F: for<'r> FnMut() + 'static + Send>(&self, irq_num: usize, handler: F) -> Result<()> {
+    pub fn bind<F: for<'r> FnMut() + 'static>(&self, irq_num: usize, handler: F) -> Result<()> {
         let mut irq_vec = self.irq_vec.borrow_mut();
         irq_vec.handlers.check_irq_num(irq_num)?;
         if irq_vec.handlers.0[irq_num].0.is_some() {
@@ -202,124 +203,4 @@ impl IrqVecBinder {
             Ok(irq_vec.handlers.0[irq_num].bind_handler(handler))
         }
     }
-}
-
-pub struct LockedIrqVec {
-    vec: Arc<Mutex<IrqVecInner>>
-}
-
-impl LockedIrqVec {
-    pub fn new(len: usize) -> LockedIrqVec {
-        LockedIrqVec {
-            vec: Arc::new(Mutex::new(IrqVecInner::new(len)))
-        }
-    }
-    pub fn sender(&self, irq_num: usize) -> Result<LockedIrqVecSender> {
-        self.vec.lock().unwrap().handlers.check_irq_num(irq_num)?;
-        Ok(LockedIrqVecSender {
-            irq_num,
-            irq_vec: Arc::clone(&self.vec),
-        })
-    }
-
-    pub fn binder(&self) -> LockedIrqVecBinder {
-        LockedIrqVecBinder {
-            irq_vec: Arc::clone(&self.vec),
-        }
-    }
-    pub fn enable(&self, irq_num: usize) -> Result<bool> {
-        self.vec.lock().unwrap().status.enable(irq_num)
-    }
-
-    pub fn set_enable(&self, irq_num: usize) -> Result<()> {
-        self.vec.lock().unwrap().status.set_enable(irq_num)
-    }
-
-    pub fn clr_enable(&self, irq_num: usize) -> Result<()> {
-        self.vec.lock().unwrap().status.clr_enable(irq_num)
-    }
-
-    pub fn pending(&self, irq_num: usize) -> Result<bool> {
-        self.vec.lock().unwrap().status.pending(irq_num)
-    }
-
-    pub fn set_pending(&self, irq_num: usize) -> Result<()> {
-        self.vec.lock().unwrap().status.set_pending(irq_num)
-    }
-
-    pub fn clr_pending(&self, irq_num: usize) -> Result<()> {
-        self.vec.lock().unwrap().status.clr_pending(irq_num)
-    }
-}
-
-
-pub struct LockedIrqVecSender {
-    irq_num: usize,
-    irq_vec: Arc<Mutex<IrqVecInner>>,
-}
-
-impl LockedIrqVecSender {
-    pub fn send(&self) -> Result<()> {
-        let mut irq_vec = self.irq_vec.lock().unwrap();
-        irq_vec.status.clr_pending(self.irq_num)?;
-        if !irq_vec.status.enable(self.irq_num)? {
-            return Ok(());
-        }
-        irq_vec.status.set_pending(self.irq_num)?;
-        irq_vec.handlers.0[self.irq_num].send_irq();
-        Ok(())
-    }
-}
-
-impl Clone for LockedIrqVecSender {
-    fn clone(&self) -> Self {
-        LockedIrqVecSender {
-            irq_num: self.irq_num,
-            irq_vec: Arc::clone(&self.irq_vec),
-        }
-    }
-}
-
-pub struct LockedIrqVecBinder {
-    irq_vec: Arc<Mutex<IrqVecInner>>,
-}
-
-impl LockedIrqVecBinder {
-    pub fn bind<F: for<'r> FnMut() + 'static + Send>(&self, irq_num: usize, handler: F) -> Result<()> {
-        let mut irq_vec = self.irq_vec.lock().unwrap();
-        irq_vec.handlers.check_irq_num(irq_num)?;
-        if irq_vec.handlers.0[irq_num].0.is_some() {
-            Err(Error::ExistedHandler(irq_num))
-        } else {
-            Ok(irq_vec.handlers.0[irq_num].bind_handler(handler))
-        }
-    }
-}
-
-#[cfg(test)]
-use std::thread;
-#[cfg(test)]
-use std::time::Duration;
-use std::rc::Rc;
-use std::cell::RefCell;
-
-#[test]
-fn shared_irq_test() {
-    let irq = Arc::new(LockedIrqVec::new(2));
-    irq.set_enable(0).unwrap();
-    let p = thread::spawn({
-        let thread_irq = irq.clone();
-        move || {
-            thread_irq.binder().bind(0, || {
-                println!("get interrupt!");
-            }).unwrap();
-            thread::sleep(Duration::from_secs(1));
-        }
-    });
-    thread::sleep(Duration::from_millis(1));
-    irq.sender(0).unwrap().send().unwrap();
-    println!("send interrupt!");
-
-    p.join().unwrap();
-    println!("pending {}", irq.pending(0).unwrap())
 }

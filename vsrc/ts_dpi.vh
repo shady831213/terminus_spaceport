@@ -22,7 +22,7 @@ import "DPI-C" function void tsv_free_addr
 );
 
 
-import "DPI-C" function chandle tsv_space(input string name);
+import "DPI-C" function chandle tsv_space();
 import "DPI-C" function chandle tsv_get_region(input chandle space , input string name);
 import "DPI-C" function chandle tsv_alloc_region(input chandle heap, input longint unsigned size, input longint unsigned align);
 import "DPI-C" function chandle tsv_root_region(input longint unsigned size, input longint unsigned align);

@@ -14,7 +14,7 @@ extern void* __ts_new_locked_allocator(const uint64_t base, const uint64_t size)
 extern uint64_t __ts_alloc_addr(const void* allocator, const uint64_t size, const uint64_t align);
 extern void __ts_free_addr(const void* allocator, const uint64_t addr);
 
-extern void* __ts_space(const char* name);
+extern void* __ts_space();
 extern void* __ts_add_region(const void* space, const char* name, void* region);
 extern void __ts_clean_region(const void* space, const char* name, void* ptr);
 extern void* __ts_get_region(const void* space, const char* name);

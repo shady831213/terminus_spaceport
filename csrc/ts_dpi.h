@@ -7,7 +7,7 @@ void* tsv_new_locked_allocator(const uint64_t base, const uint64_t size);
 uint64_t tsv_alloc_addr(const void* allocator, const uint64_t size, const uint64_t align);
 void tsv_free_addr(const void* allocator, const uint64_t addr);
 
-void* tsv_space(const char* name);
+void* tsv_space();
 void tsv_delete_region(const void* space, const char* name);
 void* tsv_get_region(const void* space, const char* name);
 void* tsv_add_region(const void* space, const char* name, void* region);

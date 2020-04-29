@@ -5,7 +5,7 @@ use std::cmp::min;
 use std::num::Wrapping;
 use std::marker::PhantomData;
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::rc::Rc;
 
 pub const DESC_F_NEXT: u16 = 0x1;
 pub const DESC_F_WRITE: u16 = 0x2;
@@ -89,7 +89,7 @@ impl RingUsedMetaElem {
 
 pub struct Queue {
     setting: QueueSetting,
-    memory: Arc<Region>,
+    memory: Rc<Region>,
     client: Box<dyn QueueClient>,
     ready: RefCell<bool>,
     queue_size: u16,
@@ -100,12 +100,12 @@ pub struct Queue {
 }
 
 impl Queue {
-    pub fn new(memory: &Arc<Region>, setting: QueueSetting, client: impl QueueClient + 'static) -> Queue {
+    pub fn new(memory: &Rc<Region>, setting: QueueSetting, client: impl QueueClient + 'static) -> Queue {
         // assert!(max_queue_size.is_power_of_two());
         let max_queue_size = setting.max_queue_size;
         Queue {
             setting,
-            memory: Arc::clone(memory),
+            memory: Rc::clone(memory),
             client: Box::new(client),
             ready: RefCell::new(false),
             queue_size: max_queue_size,
@@ -416,17 +416,17 @@ pub trait QueueClient {
 }
 
 pub struct DefaultQueueServer {
-    heap: Arc<Heap>,
-    desc_region: Option<Arc<Region>>,
-    avail_region: Option<Arc<Region>>,
-    used_region: Option<Arc<Region>>,
+    heap: Rc<Heap>,
+    desc_region: Option<Rc<Region>>,
+    avail_region: Option<Rc<Region>>,
+    used_region: Option<Rc<Region>>,
     num_used: RefCell<u16>,
     free_head: RefCell<u16>,
     last_used_idx: RefCell<u16>,
 }
 
 impl DefaultQueueServer {
-    pub fn new(heap: &Arc<Heap>) -> DefaultQueueServer {
+    pub fn new(heap: &Rc<Heap>) -> DefaultQueueServer {
         DefaultQueueServer {
             heap: heap.clone(),
             desc_region: None,

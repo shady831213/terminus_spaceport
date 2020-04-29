@@ -7,7 +7,7 @@ void* tsc_new_locked_allocator(const uint64_t base, const uint64_t size);
 uint64_t tsc_alloc_addr(const void* allocator, const uint64_t size, const uint64_t align);
 void tsc_free_addr(const void* allocator, const uint64_t addr);
 
-void* tsc_space(const char* name);
+void* tsc_space();
 void tsc_delete_region(const void* space, const char* name);
 void* tsc_get_region(const void* space, const char* name);
 void* tsc_add_region(const void* space, const char* name, void* region);

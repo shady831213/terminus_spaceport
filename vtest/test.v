@@ -1,12 +1,13 @@
 `include "ts_dpi.vh";
+import "DPI-C" function chandle root_space();
 module TestModule(input bit clock);
 chandle allocator;
 reg [3:0]cnt;
 initial begin
     chandle main_memory, rom;
     bit[31:0] data;
-    main_memory = tsv_get_region(tsv_space("root"), "main_memory");
-    rom = tsv_get_region(tsv_space("root"), "rom");
+    main_memory = tsv_get_region(root_space(), "main_memory");
+    rom = tsv_get_region(root_space(), "rom");
     $display("read rom @0x%0x", tsv_region_base(rom));
     tsv_region_read_u16(rom, tsv_region_base(rom), data[15:0]);
     tsv_region_read_u16(rom, tsv_region_base(rom)+2, data[31:16]);
