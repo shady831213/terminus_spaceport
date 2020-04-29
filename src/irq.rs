@@ -62,32 +62,38 @@ pub type IrqStatus = IrqCollection<IrqBit>;
 impl IrqStatus {
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
         self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].enable)
+        Ok(self.enable_uncheck(irq_num))
     }
 
-    pub fn set_enable(&mut self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].enable = true)
+    pub fn enable_uncheck(&self, irq_num: usize) -> bool {
+        unsafe { self.0.get_unchecked(irq_num) }.enable
     }
 
-    pub fn clr_enable(&mut self, irq_num: usize) -> Result<()> {
+    pub fn set_enable(&mut self, irq_num: usize, value: bool) -> Result<()> {
         self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].enable = false)
+        Ok(self.set_enable_uncheck(irq_num, value))
+    }
+
+    pub fn set_enable_uncheck(&mut self, irq_num: usize, value: bool) {
+        unsafe { self.0.get_unchecked_mut(irq_num) }.enable = value
     }
 
     pub fn pending(&self, irq_num: usize) -> Result<bool> {
         self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].pending)
+        Ok(self.pending_uncheck(irq_num))
     }
 
-    pub fn set_pending(&mut self, irq_num: usize) -> Result<()> {
-        self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].pending = true)
+    pub fn pending_uncheck(&self, irq_num: usize) -> bool {
+        unsafe { self.0.get_unchecked(irq_num) }.pending
     }
 
-    pub fn clr_pending(&mut self, irq_num: usize) -> Result<()> {
+    pub fn set_pending(&mut self, irq_num: usize, value: bool) -> Result<()> {
         self.check_irq_num(irq_num)?;
-        Ok(self.0[irq_num].pending = false)
+        Ok(self.set_pending_uncheck(irq_num, value))
+    }
+
+    pub fn set_pending_uncheck(&mut self, irq_num: usize, value: bool) {
+        unsafe { self.0.get_unchecked_mut(irq_num) }.pending = value
     }
 }
 
@@ -136,28 +142,38 @@ impl IrqVec {
             irq_vec: Rc::clone(&self.vec),
         }
     }
+
+
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
         self.vec.borrow().status.enable(irq_num)
     }
 
-    pub fn set_enable(&self, irq_num: usize) -> Result<()> {
-        self.vec.borrow_mut().status.set_enable(irq_num)
+    pub fn enable_uncheck(&self, irq_num: usize) -> bool {
+        self.vec.borrow().status.enable_uncheck(irq_num)
     }
 
-    pub fn clr_enable(&self, irq_num: usize) -> Result<()> {
-        self.vec.borrow_mut().status.clr_enable(irq_num)
+    pub fn set_enable(&self, irq_num: usize, value: bool) -> Result<()> {
+        self.vec.borrow_mut().status.set_enable(irq_num, value)
+    }
+
+    pub fn set_enable_uncheck(&self, irq_num: usize, value: bool) {
+        self.vec.borrow_mut().status.set_enable_uncheck(irq_num, value)
     }
 
     pub fn pending(&self, irq_num: usize) -> Result<bool> {
         self.vec.borrow().status.pending(irq_num)
     }
 
-    pub fn set_pending(&self, irq_num: usize) -> Result<()> {
-        self.vec.borrow_mut().status.set_pending(irq_num)
+    pub fn pending_uncheck(&self, irq_num: usize) -> bool {
+        self.vec.borrow().status.pending_uncheck(irq_num)
     }
 
-    pub fn clr_pending(&self, irq_num: usize) -> Result<()> {
-        self.vec.borrow_mut().status.clr_pending(irq_num)
+    pub fn set_pending(&self, irq_num: usize, value: bool) -> Result<()> {
+        self.vec.borrow_mut().status.set_pending(irq_num, value)
+    }
+
+    pub fn set_pending_uncheck(&self, irq_num: usize, value: bool) {
+        self.vec.borrow_mut().status.set_pending_uncheck(irq_num, value)
     }
 }
 
@@ -170,11 +186,11 @@ pub struct IrqVecSender {
 impl IrqVecSender {
     pub fn send(&self) -> Result<()> {
         let mut irq_vec = self.irq_vec.borrow_mut();
-        irq_vec.status.clr_pending(self.irq_num)?;
-        if !irq_vec.status.enable(self.irq_num)? {
+        irq_vec.status.set_pending(self.irq_num, false)?;
+        if !irq_vec.status.enable_uncheck(self.irq_num) {
             return Ok(());
         }
-        irq_vec.status.set_pending(self.irq_num)?;
+        irq_vec.status.set_pending_uncheck(self.irq_num, true);
         irq_vec.handlers.0[self.irq_num].send_irq();
         Ok(())
     }
