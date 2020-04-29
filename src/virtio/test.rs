@@ -2,7 +2,7 @@ use super::queue::{Queue, QueueSetting, RingUsedMetaElem, QueueClient, DESC_F_WR
 use std::sync::Arc;
 use crate::memory::region::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
-use crate::irq::{IrqVec, IrqVecSender};
+use crate::irq::{LockedIrqVec, LockedIrqVecSender};
 use super::device::Device;
 use std::cell::RefCell;
 
@@ -12,7 +12,7 @@ struct TestDevice {
 }
 
 impl TestDevice {
-    pub fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestDevice {
+    pub fn new(memory: &Arc<Region>, irq_sender: LockedIrqVecSender) -> TestDevice {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
                                             2,
@@ -46,17 +46,17 @@ impl TestDevice {
 struct TestDeviceConfig {
     config1: u64,
     config2: u64,
-    irq_sender: IrqVecSender,
+    irq_sender: LockedIrqVecSender,
 }
 
 struct TestDeviceInput {
     memory: Arc<Region>,
-    irq_sender: IrqVecSender,
+    irq_sender: LockedIrqVecSender,
     loop_cnt: RefCell<usize>,
 }
 
 impl TestDeviceInput {
-    fn new(memory: &Arc<Region>, irq_sender: IrqVecSender) -> TestDeviceInput {
+    fn new(memory: &Arc<Region>, irq_sender: LockedIrqVecSender) -> TestDeviceInput {
         TestDeviceInput {
             memory: memory.clone(),
             irq_sender,
@@ -138,7 +138,7 @@ impl QueueClient for TestDeviceOutput {
 
 
 struct TestDeviceDriver {
-    irq_vec: IrqVec,
+    irq_vec: LockedIrqVec,
     input_head: u16,
     input_buffer:Arc<Region>,
     heap:Arc<Heap>,
@@ -149,7 +149,7 @@ struct TestDeviceDriver {
 
 impl TestDeviceDriver {
     fn new(heap: &Arc<Heap>) -> TestDeviceDriver {
-        let irq_vec = IrqVec::new(1);
+        let irq_vec = LockedIrqVec::new(1);
         irq_vec.set_enable(0).unwrap();
         let device = TestDevice::new(heap.get_region(), irq_vec.sender(0).unwrap());
         let input_queue = device.virtio_device.get_queue(0);

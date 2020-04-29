@@ -113,25 +113,117 @@ impl IrqVecInner {
 }
 
 pub struct IrqVec {
-    vec: Arc<Mutex<IrqVecInner>>
+    vec: Rc<RefCell<IrqVecInner>>
 }
 
 impl IrqVec {
     pub fn new(len: usize) -> IrqVec {
         IrqVec {
-            vec: Arc::new(Mutex::new(IrqVecInner::new(len)))
+            vec: Rc::new(RefCell::new(IrqVecInner::new(len)))
         }
     }
     pub fn sender(&self, irq_num: usize) -> Result<IrqVecSender> {
-        self.vec.lock().unwrap().handlers.check_irq_num(irq_num)?;
+        self.vec.borrow().handlers.check_irq_num(irq_num)?;
         Ok(IrqVecSender {
             irq_num,
-            irq_vec: Arc::clone(&self.vec),
+            irq_vec: Rc::clone(&self.vec),
         })
     }
 
     pub fn binder(&self) -> IrqVecBinder {
         IrqVecBinder {
+            irq_vec: Rc::clone(&self.vec),
+        }
+    }
+    pub fn enable(&self, irq_num: usize) -> Result<bool> {
+        self.vec.borrow().status.enable(irq_num)
+    }
+
+    pub fn set_enable(&self, irq_num: usize) -> Result<()> {
+        self.vec.borrow_mut().status.set_enable(irq_num)
+    }
+
+    pub fn clr_enable(&self, irq_num: usize) -> Result<()> {
+        self.vec.borrow_mut().status.clr_enable(irq_num)
+    }
+
+    pub fn pending(&self, irq_num: usize) -> Result<bool> {
+        self.vec.borrow().status.pending(irq_num)
+    }
+
+    pub fn set_pending(&self, irq_num: usize) -> Result<()> {
+        self.vec.borrow_mut().status.set_pending(irq_num)
+    }
+
+    pub fn clr_pending(&self, irq_num: usize) -> Result<()> {
+        self.vec.borrow_mut().status.clr_pending(irq_num)
+    }
+}
+
+
+pub struct IrqVecSender {
+    irq_num: usize,
+    irq_vec: Rc<RefCell<IrqVecInner>>,
+}
+
+impl IrqVecSender {
+    pub fn send(&self) -> Result<()> {
+        let mut irq_vec = self.irq_vec.borrow_mut();
+        irq_vec.status.clr_pending(self.irq_num)?;
+        if !irq_vec.status.enable(self.irq_num)? {
+            return Ok(());
+        }
+        irq_vec.status.set_pending(self.irq_num)?;
+        irq_vec.handlers.0[self.irq_num].send_irq();
+        Ok(())
+    }
+}
+
+impl Clone for IrqVecSender {
+    fn clone(&self) -> Self {
+        IrqVecSender {
+            irq_num: self.irq_num,
+            irq_vec: Rc::clone(&self.irq_vec),
+        }
+    }
+}
+
+pub struct IrqVecBinder {
+    irq_vec: Rc<RefCell<IrqVecInner>>,
+}
+
+impl IrqVecBinder {
+    pub fn bind<F: for<'r> FnMut() + 'static + Send>(&self, irq_num: usize, handler: F) -> Result<()> {
+        let mut irq_vec = self.irq_vec.borrow_mut();
+        irq_vec.handlers.check_irq_num(irq_num)?;
+        if irq_vec.handlers.0[irq_num].0.is_some() {
+            Err(Error::ExistedHandler(irq_num))
+        } else {
+            Ok(irq_vec.handlers.0[irq_num].bind_handler(handler))
+        }
+    }
+}
+
+pub struct LockedIrqVec {
+    vec: Arc<Mutex<IrqVecInner>>
+}
+
+impl LockedIrqVec {
+    pub fn new(len: usize) -> LockedIrqVec {
+        LockedIrqVec {
+            vec: Arc::new(Mutex::new(IrqVecInner::new(len)))
+        }
+    }
+    pub fn sender(&self, irq_num: usize) -> Result<LockedIrqVecSender> {
+        self.vec.lock().unwrap().handlers.check_irq_num(irq_num)?;
+        Ok(LockedIrqVecSender {
+            irq_num,
+            irq_vec: Arc::clone(&self.vec),
+        })
+    }
+
+    pub fn binder(&self) -> LockedIrqVecBinder {
+        LockedIrqVecBinder {
             irq_vec: Arc::clone(&self.vec),
         }
     }
@@ -161,12 +253,12 @@ impl IrqVec {
 }
 
 
-pub struct IrqVecSender {
+pub struct LockedIrqVecSender {
     irq_num: usize,
     irq_vec: Arc<Mutex<IrqVecInner>>,
 }
 
-impl IrqVecSender {
+impl LockedIrqVecSender {
     pub fn send(&self) -> Result<()> {
         let mut irq_vec = self.irq_vec.lock().unwrap();
         irq_vec.status.clr_pending(self.irq_num)?;
@@ -179,20 +271,20 @@ impl IrqVecSender {
     }
 }
 
-impl Clone for IrqVecSender {
+impl Clone for LockedIrqVecSender {
     fn clone(&self) -> Self {
-        IrqVecSender {
+        LockedIrqVecSender {
             irq_num: self.irq_num,
             irq_vec: Arc::clone(&self.irq_vec),
         }
     }
 }
 
-pub struct IrqVecBinder {
+pub struct LockedIrqVecBinder {
     irq_vec: Arc<Mutex<IrqVecInner>>,
 }
 
-impl IrqVecBinder {
+impl LockedIrqVecBinder {
     pub fn bind<F: for<'r> FnMut() + 'static + Send>(&self, irq_num: usize, handler: F) -> Result<()> {
         let mut irq_vec = self.irq_vec.lock().unwrap();
         irq_vec.handlers.check_irq_num(irq_num)?;
@@ -208,10 +300,12 @@ impl IrqVecBinder {
 use std::thread;
 #[cfg(test)]
 use std::time::Duration;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[test]
 fn shared_irq_test() {
-    let irq = Arc::new(IrqVec::new(2));
+    let irq = Arc::new(LockedIrqVec::new(2));
     irq.set_enable(0).unwrap();
     let p = thread::spawn({
         let thread_irq = irq.clone();

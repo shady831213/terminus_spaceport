@@ -1,12 +1,12 @@
 use crate::memory::region::Region;
 use super::queue::Queue;
 use std::sync::Arc;
-use crate::irq::{IrqVec, IrqVecSender};
+use crate::irq::{LockedIrqVec, LockedIrqVecSender};
 
 pub struct Device {
     memory: Arc<Region>,
     queues: Vec<Arc<Queue>>,
-    irq_vec: Arc<IrqVec>,
+    irq_vec: Arc<LockedIrqVec>,
     device_id: u32,
     vendor_id: u32,
     device_features: u32,
@@ -14,12 +14,12 @@ pub struct Device {
 
 impl Device {
     pub fn new(memory: &Arc<Region>,
-               irq_sender: IrqVecSender,
+               irq_sender: LockedIrqVecSender,
                num_irqs: usize,
                device_id: u32,
                vendor_id: u32,
                device_features: u32) -> Device {
-        let irq_vec = IrqVec::new(num_irqs);
+        let irq_vec = LockedIrqVec::new(num_irqs);
         for i in 0..num_irqs {
             let sender = irq_sender.clone();
             irq_vec.binder().bind(i, move || {
@@ -44,7 +44,7 @@ impl Device {
         self.queues[id].clone()
     }
 
-    pub fn get_irq_vec(&self) -> Arc<IrqVec> {
+    pub fn get_irq_vec(&self) -> Arc<LockedIrqVec> {
         self.irq_vec.clone()
     }
 }
