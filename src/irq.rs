@@ -142,7 +142,7 @@ impl IrqVec {
         }
     }
     pub fn sender(&self, irq_num: usize) -> Result<IrqVecSender> {
-        self.vec.borrow().handlers.check_irq_num(irq_num)?;
+        self.vec.borrow().status.check_irq_num(irq_num)?;
         Ok(IrqVecSender {
             irq_num,
             irq_vec: Rc::clone(&self.vec),
@@ -153,6 +153,14 @@ impl IrqVec {
         IrqVecBinder {
             irq_vec: Rc::clone(&self.vec),
         }
+    }
+
+    pub fn listener(&self, irq_num: usize) -> Result<IrqVecListener> {
+        self.vec.borrow().status.check_irq_num(irq_num)?;
+        Ok(IrqVecListener {
+            irq_num,
+            irq_vec: Rc::clone(&self.vec),
+        })
     }
 
     pub fn pendings(&self) -> u64 {
@@ -217,7 +225,23 @@ impl IrqVecSender {
     pub fn clear(&self) -> Result<()> {
         self.irq_vec.borrow_mut().status.set_pending(self.irq_num, false)
     }
+}
 
+impl Clone for IrqVecSender {
+    fn clone(&self) -> Self {
+        IrqVecSender {
+            irq_num: self.irq_num,
+            irq_vec: Rc::clone(&self.irq_vec),
+        }
+    }
+}
+
+pub struct IrqVecListener {
+    irq_num: usize,
+    irq_vec: Rc<RefCell<IrqVecInner>>,
+}
+
+impl IrqVecListener {
     pub fn pending(&self) -> Result<bool> {
         self.irq_vec.borrow().status.pending(self.irq_num)
     }
@@ -227,9 +251,9 @@ impl IrqVecSender {
     }
 }
 
-impl Clone for IrqVecSender {
+impl Clone for IrqVecListener {
     fn clone(&self) -> Self {
-        IrqVecSender {
+        IrqVecListener {
             irq_num: self.irq_num,
             irq_vec: Rc::clone(&self.irq_vec),
         }
