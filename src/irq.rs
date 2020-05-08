@@ -163,7 +163,6 @@ impl IrqVec {
         self.vec.borrow_mut().status.clr_pendings(val)
     }
 
-
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
         self.vec.borrow().status.enable(irq_num)
     }
@@ -217,6 +216,14 @@ impl IrqVecSender {
 
     pub fn clear(&self) -> Result<()> {
         self.irq_vec.borrow_mut().status.set_pending(self.irq_num, false)
+    }
+
+    pub fn pending(&self) -> Result<bool> {
+        self.irq_vec.borrow().status.pending(self.irq_num)
+    }
+
+    pub fn pending_uncheck(&self) -> bool {
+        self.irq_vec.borrow().status.pending_uncheck(self.irq_num)
     }
 }
 
