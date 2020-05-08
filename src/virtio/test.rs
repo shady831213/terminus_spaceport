@@ -1,10 +1,11 @@
-use super::queue::{Queue, QueueSetting, RingUsedMetaElem, QueueClient, DESC_F_WRITE, DefaultQueueServer, QueueServer};
+use super::queue::{Queue, QueueSetting, RingUsedMetaElem, QueueClient, DefaultQueueServer, QueueServer};
 use crate::memory::region::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
 use crate::irq::{IrqVec, IrqVecSender};
 use super::device::Device;
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::virtio::DESC_F_WRITE;
 
 struct TestDevice {
     virtio_device: Device,
@@ -155,7 +156,7 @@ impl TestDeviceDriver {
         let input_queue = device.virtio_device.get_queue(0);
         let input_buffer = heap.alloc(4, 4).unwrap();
         let mut input_server = DefaultQueueServer::new(&heap);
-        input_server.init_queue(input_queue.deref()).unwrap();
+        input_server.init_queue(input_queue).unwrap();
         irq_vec.binder().bind(0, {
             move || {}
         }).unwrap();
@@ -164,7 +165,7 @@ impl TestDeviceDriver {
 
         let output_queue = device.virtio_device.get_queue(1);
         let mut output_server = DefaultQueueServer::new(&heap);
-        output_server.init_queue(output_queue.deref()).unwrap();
+        output_server.init_queue(output_queue).unwrap();
         TestDeviceDriver {
             irq_vec,
             input_head,
@@ -179,7 +180,7 @@ impl TestDeviceDriver {
     fn read(&self) -> super::queue::Result<Vec<u8>> {
         if self.irq_vec.pending(0).unwrap() && self.device.virtio_device.get_irq_vec().pending(0).unwrap() {
             let queue = self.device.virtio_device.get_queue(0);
-            let used = self.input_server.pop_used(queue.deref()).unwrap();
+            let used = self.input_server.pop_used(queue).unwrap();
             let mut output = vec![];
             queue.desc_iter(used.id as u16).for_each(|desc_res| {
                 let (idx, desc) = desc_res.unwrap();
@@ -188,7 +189,7 @@ impl TestDeviceDriver {
                 output.append(&mut desc_buf);
             });
             assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
-            self.input_server.free_used(queue.deref(), &used, true)?;
+            self.input_server.free_used(queue, &used, true)?;
             self.irq_vec.set_pending(0,false).unwrap();
             self.device.virtio_device.get_irq_vec().set_pending(0,false).unwrap();
             self.input_server.notify_queue(&queue, self.input_head)?;
@@ -199,13 +200,13 @@ impl TestDeviceDriver {
 
     fn write(&self, input: &[u8]) -> super::queue::Result<usize> {
         let queue = self.device.virtio_device.get_queue(1);
-        if let Some(used) = self.output_server.pop_used(queue.deref()) {
-            self.output_server.free_used(queue.deref(), &used, false)?;
+        if let Some(used) = self.output_server.pop_used(queue) {
+            self.output_server.free_used(queue, &used, false)?;
         }
         let output_buffer = self.heap.alloc(input.len() as u64, 4).unwrap();
         BytesAccess::write(output_buffer.deref(), &output_buffer.info.base, input);
-        let head = self.output_server.add_to_queue(&queue, &vec![].as_slice(), &vec![output_buffer.deref()].as_slice())?;
-        self.output_server.notify_queue(&queue, head)?;
+        let head = self.output_server.add_to_queue(queue, &vec![].as_slice(), &vec![output_buffer.deref()].as_slice())?;
+        self.output_server.notify_queue(queue, head)?;
         Ok(input.len())
     }
 }

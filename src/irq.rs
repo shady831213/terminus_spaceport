@@ -60,6 +60,18 @@ impl<T> IrqCollection<T> {
 pub type IrqStatus = IrqCollection<IrqBit>;
 
 impl IrqStatus {
+    pub fn pendings(&self) -> u64 {
+        self.0.iter().enumerate().map(|(i, s)| { (((s.enable && s.pending) as u64) << i as u64) }).fold(0, |acc, p| { acc | p })
+    }
+
+    pub fn clr_pendings(&mut self, val: u64) {
+        for (i, s) in self.0.iter_mut().enumerate() {
+            if (val >> (i as u64)) & 0x1 != 0 {
+                s.pending = false
+            }
+        }
+    }
+
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
         self.check_irq_num(irq_num)?;
         Ok(self.enable_uncheck(irq_num))
@@ -143,6 +155,14 @@ impl IrqVec {
         }
     }
 
+    pub fn pendings(&self) -> u64 {
+        self.vec.borrow().status.pendings()
+    }
+
+    pub fn clr_pendings(&self, val: u64) {
+        self.vec.borrow_mut().status.clr_pendings(val)
+    }
+
 
     pub fn enable(&self, irq_num: usize) -> Result<bool> {
         self.vec.borrow().status.enable(irq_num)
@@ -193,6 +213,10 @@ impl IrqVecSender {
         irq_vec.status.set_pending_uncheck(self.irq_num, true);
         irq_vec.handlers.0[self.irq_num].send_irq();
         Ok(())
+    }
+
+    pub fn clear(&self) -> Result<()> {
+        self.irq_vec.borrow_mut().status.set_pending(self.irq_num, false)
     }
 }
 

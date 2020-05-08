@@ -6,9 +6,7 @@ use std::num::Wrapping;
 use std::marker::PhantomData;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-pub const DESC_F_NEXT: u16 = 0x1;
-pub const DESC_F_WRITE: u16 = 0x2;
+use crate::virtio::{DESC_F_NEXT, DESC_F_WRITE, MAX_QUEUE_NUM};
 
 #[derive(Debug)]
 pub enum Error {
@@ -92,7 +90,7 @@ pub struct Queue {
     memory: Rc<Region>,
     client: Box<dyn QueueClient>,
     ready: RefCell<bool>,
-    queue_size: u16,
+    queue_size: RefCell<u16>,
     last_avail_idx: RefCell<Wrapping<u16>>,
     desc_addr: RefCell<u64>,
     avail_addr: RefCell<u64>,
@@ -102,13 +100,14 @@ pub struct Queue {
 impl Queue {
     pub fn new(memory: &Rc<Region>, setting: QueueSetting, client: impl QueueClient + 'static) -> Queue {
         // assert!(max_queue_size.is_power_of_two());
+        assert!(setting.max_queue_size <= MAX_QUEUE_NUM);
         let max_queue_size = setting.max_queue_size;
         Queue {
             setting,
             memory: Rc::clone(memory),
             client: Box::new(client),
             ready: RefCell::new(false),
-            queue_size: max_queue_size,
+            queue_size: RefCell::new(max_queue_size),
             last_avail_idx: RefCell::new(Wrapping(0)),
             desc_addr: RefCell::new(0),
             avail_addr: RefCell::new(0),
@@ -116,10 +115,10 @@ impl Queue {
         }
     }
 
-    pub fn reset(&mut self) {
+    pub fn reset(&self) {
         *self.ready.borrow_mut() = false;
         *self.last_avail_idx.borrow_mut() = Wrapping(0);
-        self.queue_size = self.setting.max_queue_size;
+        *self.queue_size.borrow_mut() = self.setting.max_queue_size;
         *self.desc_addr.borrow_mut() = 0;
         *self.avail_addr.borrow_mut() = 0;
         *self.used_addr.borrow_mut() = 0;
@@ -177,6 +176,16 @@ impl Queue {
         *self.desc_addr.borrow_mut() = desc_addr
     }
 
+    pub fn set_desc_addr_low(&self, addr: u32) {
+        let high = *self.desc_addr.borrow() >> 32 << 32;
+        *self.desc_addr.borrow_mut() = high | addr as u64
+    }
+
+    pub fn set_desc_addr_high(&self, addr: u32) {
+        let low = *self.desc_addr.borrow() as u32 as u64;
+        *self.desc_addr.borrow_mut() = ((addr as u64) << 32) | low
+    }
+
     pub fn get_avail_addr(&self) -> u64 {
         *self.avail_addr.borrow()
     }
@@ -185,6 +194,16 @@ impl Queue {
         *self.avail_addr.borrow_mut() = avail_addr
     }
 
+    pub fn set_avail_addr_low(&self, addr: u32) {
+        let high = *self.avail_addr.borrow() >> 32 << 32;
+        *self.avail_addr.borrow_mut() = high | addr as u64
+    }
+
+    pub fn set_avail_addr_high(&self, addr: u32) {
+        let low = *self.avail_addr.borrow() as u32 as u64;
+        *self.avail_addr.borrow_mut() = ((addr as u64) << 32) | low
+    }
+    
     pub fn get_used_addr(&self) -> u64 {
         *self.used_addr.borrow()
     }
@@ -193,8 +212,22 @@ impl Queue {
         *self.used_addr.borrow_mut() = used_addr
     }
 
+    pub fn set_used_addr_low(&self, addr: u32) {
+        let high = *self.used_addr.borrow() >> 32 << 32;
+        *self.used_addr.borrow_mut() = high | addr as u64
+    }
+
+    pub fn set_used_addr_high(&self, addr: u32) {
+        let low = *self.used_addr.borrow() as u32 as u64;
+        *self.used_addr.borrow_mut() = ((addr as u64) << 32) | low
+    }
+    
     pub fn get_queue_size(&self) -> usize {
-        min(self.queue_size, self.setting.max_queue_size) as usize
+        min(*self.queue_size.borrow(), self.setting.max_queue_size) as usize
+    }
+
+    pub fn set_queue_size(&self, size: u16) {
+        *self.queue_size.borrow_mut() = size
     }
 
     pub fn set_desc(&self, idx: u16, desc: &DescMeta) -> Result<()> {
