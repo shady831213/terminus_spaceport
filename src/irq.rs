@@ -222,6 +222,10 @@ impl IrqVecSender {
         Ok(())
     }
 
+    pub fn id(&self) -> usize {
+        self.irq_num
+    }
+
     pub fn clear(&self) -> Result<()> {
         self.irq_vec.borrow_mut().status.set_pending(self.irq_num, false)
     }
@@ -242,6 +246,10 @@ pub struct IrqVecListener {
 }
 
 impl IrqVecListener {
+    pub fn id(&self) -> usize {
+        self.irq_num
+    }
+
     pub fn pending(&self) -> Result<bool> {
         self.irq_vec.borrow().status.pending(self.irq_num)
     }

@@ -13,7 +13,7 @@ struct TestDevice {
 }
 
 impl TestDevice {
-    pub fn new(memory: &Rc<Region>, irq_sender: Option<IrqVecSender>) -> TestDevice {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> TestDevice {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
                                             2,
@@ -31,7 +31,7 @@ impl TestDevice {
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
 
-        virtio_device.get_irq_vec().set_enable(1,true).unwrap();
+        virtio_device.get_irq_vec().set_enable(1, true).unwrap();
         let config = TestDeviceConfig {
             config1: 0,
             config2: 0,
@@ -152,7 +152,7 @@ impl TestDeviceDriver {
     fn new(heap: &Rc<Heap>) -> TestDeviceDriver {
         let irq_vec = IrqVec::new(1);
         irq_vec.set_enable(0, true).unwrap();
-        let device = TestDevice::new(heap.get_region(), Some(irq_vec.sender(0).unwrap()));
+        let device = TestDevice::new(heap.get_region(), irq_vec.sender(0).unwrap());
         let input_queue = device.virtio_device.get_queue(0);
         let input_buffer = heap.alloc(4, 4).unwrap();
         let mut input_server = DefaultQueueServer::new(&heap);
@@ -190,8 +190,8 @@ impl TestDeviceDriver {
             });
             assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
             self.input_server.free_used(queue, &used, true)?;
-            self.irq_vec.set_pending(0,false).unwrap();
-            self.device.virtio_device.get_irq_vec().set_pending(0,false).unwrap();
+            self.irq_vec.set_pending(0, false).unwrap();
+            self.device.virtio_device.get_irq_vec().set_pending(0, false).unwrap();
             self.input_server.notify_queue(&queue, self.input_head)?;
             return Ok(output);
         }
