@@ -93,6 +93,10 @@ impl Device {
     pub fn get_irq_vec(&self) -> &IrqVec {
         &self.irq_vec
     }
+
+    pub fn memory(&self) -> &Rc<Region> {
+        &self.memory
+    }
 }
 
 pub trait DeviceAccess {
