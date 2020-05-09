@@ -334,13 +334,16 @@ impl Queue {
                           PhantomData))
     }
 
+    pub fn update_last_avail(&self) {
+        *self.last_avail_idx.borrow_mut() += Wrapping(1);
+    }
+
     pub fn notify_client(&self) -> Result<()> {
         self.check_ready()?;
         for desc_head in self.avail_iter()? {
             if !self.client.receive(self, desc_head)? {
                 return Ok(());
             }
-            *self.last_avail_idx.borrow_mut() += Wrapping(1);
         }
         Ok(())
     }

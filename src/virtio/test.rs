@@ -92,6 +92,7 @@ impl QueueClient for TestDeviceInput {
             return Err(super::queue::Error::ClientError("no valid buffer!".to_string()));
         }
         queue.set_used(desc_head, count as u32)?;
+        queue.update_last_avail();
         self.irq_sender.send().unwrap();
         *self.loop_cnt.borrow_mut() += 1;
         Ok(true)
@@ -133,6 +134,7 @@ impl QueueClient for TestDeviceOutput {
             return Err(super::queue::Error::ClientError("no valid buffer!".to_string()));
         }
         queue.set_used(desc_head, count as u32)?;
+        queue.update_last_avail();
         Ok(true)
     }
 }
