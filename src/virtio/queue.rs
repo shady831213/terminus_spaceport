@@ -203,7 +203,7 @@ impl Queue {
         let low = *self.avail_addr.borrow() as u32 as u64;
         *self.avail_addr.borrow_mut() = ((addr as u64) << 32) | low
     }
-    
+
     pub fn get_used_addr(&self) -> u64 {
         *self.used_addr.borrow()
     }
@@ -221,7 +221,10 @@ impl Queue {
         let low = *self.used_addr.borrow() as u32 as u64;
         *self.used_addr.borrow_mut() = ((addr as u64) << 32) | low
     }
-    
+    pub fn get_queue_max_size(&self) -> u16 {
+        self.setting.max_queue_size
+    }
+
     pub fn get_queue_size(&self) -> usize {
         min(*self.queue_size.borrow(), self.setting.max_queue_size) as usize
     }

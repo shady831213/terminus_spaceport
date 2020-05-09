@@ -117,7 +117,7 @@ pub trait DeviceAccess {
         *self.device().queue_sel.borrow_mut() = *val
     }
 
-    fn queue_num_max(&self) -> u32 { MAX_QUEUE_NUM as u32 }
+    fn queue_num_max(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_queue_max_size() as u32 }
 
     fn queue_num(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_queue_size() as u32 }
 
