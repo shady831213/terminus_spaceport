@@ -30,7 +30,7 @@ use crate::virtio::{MAX_QUEUE,
 pub struct Device {
     memory: Rc<Region>,
     queues: Vec<Queue>,
-    irq_sender: IrqVecSender,
+    irq_sender: Option<IrqVecSender>,
     irq_vec: IrqVec,
     queue_sel: RefCell<u32>,
     status: RefCell<u32>,
@@ -41,17 +41,19 @@ pub struct Device {
 
 impl Device {
     pub fn new(memory: &Rc<Region>,
-               irq_sender: IrqVecSender,
+               irq_sender: Option<IrqVecSender>,
                num_irqs: usize,
                device_id: u32,
                vendor_id: u32,
                device_features: u32) -> Device {
         let mut irq_vec = IrqVec::new(num_irqs);
-        for i in 0..num_irqs {
-            let sender = irq_sender.clone();
-            irq_vec.binder().bind(i, move || {
-                sender.send().unwrap();
-            }).unwrap();
+        if let Some(ref sender) = irq_sender {
+            for i in 0..num_irqs {
+                let s = sender.clone();
+                irq_vec.binder().bind(i, move || {
+                    s.send().unwrap();
+                }).unwrap();
+            }
         }
         Device {
             memory: Rc::clone(memory),
@@ -67,7 +69,9 @@ impl Device {
     }
 
     pub fn reset(&self) {
-        self.irq_sender.clear().unwrap();
+        if let Some(ref sender) = self.irq_sender {
+            sender.clear().unwrap();
+        }
         *self.queue_sel.borrow_mut() = 0;
         *self.status.borrow_mut() = 0;
         for q in self.queues.iter() {
@@ -151,7 +155,9 @@ pub trait DeviceAccess {
     fn int_ack(&self, val: &u32) {
         self.device().irq_vec.clr_pendings(*val as u64);
         if self.device().irq_vec.pendings() == 0 {
-            self.device().irq_sender.clear().unwrap();
+            if let Some(ref sender) = self.device().irq_sender {
+                sender.clear().unwrap();
+            }
         }
     }
 
