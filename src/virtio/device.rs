@@ -54,6 +54,8 @@ impl Device {
                     s.send().unwrap();
                 }).unwrap();
             }
+        } else {
+            assert_eq!(num_irqs, 0)
         }
         Device {
             memory: Rc::clone(memory),
