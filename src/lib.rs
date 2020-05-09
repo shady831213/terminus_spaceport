@@ -8,7 +8,7 @@ pub mod space;
 
 pub mod irq;
 
-mod virtio;
+pub mod virtio;
 
 mod capi;
 

@@ -34,6 +34,9 @@ pub const DESC_F_NEXT: u16 = 0x1;
 pub const DESC_F_WRITE: u16 = 0x2;
 
 mod device;
+pub use device::*;
 mod queue;
+pub use queue::*;
+
 #[cfg(test)]
 mod test;
