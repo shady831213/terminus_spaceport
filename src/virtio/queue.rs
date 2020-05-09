@@ -322,7 +322,7 @@ impl Queue {
         DescIter::new(self, idx, PhantomData)
     }
 
-    fn avail_iter(&self) -> Result<AvailIter> {
+    pub fn avail_iter(&self) -> Result<AvailIter> {
         let mut header = RingMetaHeader { flags: 0, idx: 0 };
         SizedAccess::read(self.memory.deref(), &self.get_avail_addr(), &mut header);
         Ok(AvailIter::new(self,
