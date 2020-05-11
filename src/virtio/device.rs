@@ -188,63 +188,65 @@ pub trait DeviceAccess {
 
 pub trait MMIODevice: DeviceAccess {
     fn read_bytes(&self, offset: &u64, data: &mut [u8]) {
-        if data.len() == 4 {
-            data.copy_from_slice(&self.read_u32(offset).to_le_bytes())
-        }
+        data.copy_from_slice(&self.read(offset).to_le_bytes())
     }
 
     fn write_bytes(&self, offset: &u64, data: &[u8]) {
-        if data.len() == 4 {
-            let mut bytes = [0; 4];
-            bytes.copy_from_slice(data);
-            self.write_u32(offset, &u32::from_le_bytes(bytes))
-        }
+        let mut bytes = [0; 4];
+        bytes.copy_from_slice(data);
+        self.write(offset, &u32::from_le_bytes(bytes))
     }
 
-    fn read_u32(&self, offset: &u64) -> u32 {
+    fn read(&self, offset: &u64) -> u32 {
         if *offset >= MMIO_CONFIG {
             return self.config(*offset - MMIO_CONFIG);
         }
-        match *offset {
-            MMIO_MAGIC_VALUE => self.magic(),
-            MMIO_VERSION => self.version(),
-            MMIO_DEVICE_ID => self.device_id(),
-            MMIO_VENDOR_ID => self.vendor_id(),
-            MMIO_DEVICE_FEATURES => self.device_features(),
-            MMIO_QUEUE_SEL => self.queue_sel(),
-            MMIO_QUEUE_NUM_MAX => self.queue_num_max(),
-            MMIO_QUEUE_NUM => self.queue_num(),
-            MMIO_QUEUE_DESC_LOW => self.queue_desc_low(),
-            MMIO_QUEUE_AVAIL_LOW => self.queue_avail_low(),
-            MMIO_QUEUE_USED_LOW => self.queue_used_low(),
-            MMIO_QUEUE_DESC_HIGH => self.queue_desc_high(),
-            MMIO_QUEUE_AVAIL_HIGH => self.queue_avail_high(),
-            MMIO_QUEUE_USED_HIGH => self.queue_used_high(),
-            MMIO_QUEUE_READY => self.queue_ready(),
-            MMIO_INTERRUPT_STATUS => self.int_status(),
-            MMIO_STATUS => self.status(),
-            _ => 0
+        if (*offset).trailing_zeros() > 1 {
+            match *offset {
+                MMIO_MAGIC_VALUE => self.magic(),
+                MMIO_VERSION => self.version(),
+                MMIO_DEVICE_ID => self.device_id(),
+                MMIO_VENDOR_ID => self.vendor_id(),
+                MMIO_DEVICE_FEATURES => self.device_features(),
+                MMIO_QUEUE_SEL => self.queue_sel(),
+                MMIO_QUEUE_NUM_MAX => self.queue_num_max(),
+                MMIO_QUEUE_NUM => self.queue_num(),
+                MMIO_QUEUE_DESC_LOW => self.queue_desc_low(),
+                MMIO_QUEUE_AVAIL_LOW => self.queue_avail_low(),
+                MMIO_QUEUE_USED_LOW => self.queue_used_low(),
+                MMIO_QUEUE_DESC_HIGH => self.queue_desc_high(),
+                MMIO_QUEUE_AVAIL_HIGH => self.queue_avail_high(),
+                MMIO_QUEUE_USED_HIGH => self.queue_used_high(),
+                MMIO_QUEUE_READY => self.queue_ready(),
+                MMIO_INTERRUPT_STATUS => self.int_status(),
+                MMIO_STATUS => self.status(),
+                _ => 0
+            }
+        } else {
+            0
         }
     }
 
-    fn write_u32(&self, offset: &u64, val: &u32) {
+    fn write(&self, offset: &u64, val: &u32) {
         if *offset >= MMIO_CONFIG {
             return self.set_config(*offset - MMIO_CONFIG, val);
         }
-        match *offset {
-            MMIO_QUEUE_SEL => self.set_queue_sel(val),
-            MMIO_QUEUE_NUM => self.set_queue_num(val),
-            MMIO_QUEUE_DESC_LOW => self.set_queue_desc_low(val),
-            MMIO_QUEUE_AVAIL_LOW => self.set_queue_avail_low(val),
-            MMIO_QUEUE_USED_LOW => self.set_queue_used_low(val),
-            MMIO_QUEUE_DESC_HIGH => self.set_queue_desc_high(val),
-            MMIO_QUEUE_AVAIL_HIGH => self.set_queue_avail_high(val),
-            MMIO_QUEUE_USED_HIGH => self.set_queue_used_high(val),
-            MMIO_QUEUE_READY => self.set_queue_ready(val),
-            MMIO_STATUS => self.set_status(val),
-            MMIO_QUEUE_NOTIFY => self.queue_notify(val),
-            MMIO_INTERRUPT_ACK => self.int_ack(val),
-            _ => {}
+        if (*offset).trailing_zeros() > 1 {
+            match *offset {
+                MMIO_QUEUE_SEL => self.set_queue_sel(val),
+                MMIO_QUEUE_NUM => self.set_queue_num(val),
+                MMIO_QUEUE_DESC_LOW => self.set_queue_desc_low(val),
+                MMIO_QUEUE_AVAIL_LOW => self.set_queue_avail_low(val),
+                MMIO_QUEUE_USED_LOW => self.set_queue_used_low(val),
+                MMIO_QUEUE_DESC_HIGH => self.set_queue_desc_high(val),
+                MMIO_QUEUE_AVAIL_HIGH => self.set_queue_avail_high(val),
+                MMIO_QUEUE_USED_HIGH => self.set_queue_used_high(val),
+                MMIO_QUEUE_READY => self.set_queue_ready(val),
+                MMIO_STATUS => self.set_status(val),
+                MMIO_QUEUE_NOTIFY => self.queue_notify(val),
+                MMIO_INTERRUPT_ACK => self.int_ack(val),
+                _ => {}
+            }
         }
     }
 }
