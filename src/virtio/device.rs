@@ -10,6 +10,7 @@ use crate::virtio::{MAX_QUEUE,
                     MMIO_DEVICE_ID,
                     MMIO_VENDOR_ID,
                     MMIO_DEVICE_FEATURES,
+                    MMIO_DEVICE_FEATURES_SEL,
                     MMIO_DRIVER_FEATURES,
                     MMIO_QUEUE_SEL,
                     MMIO_QUEUE_NUM_MAX,
@@ -37,6 +38,7 @@ pub struct Device {
     device_id: u32,
     vendor_id: u32,
     device_features: u32,
+    device_features_sel: RefCell<u32>,
 }
 
 impl Device {
@@ -63,6 +65,7 @@ impl Device {
             device_id,
             vendor_id,
             device_features,
+            device_features_sel: RefCell::new(0),
         }
     }
 
@@ -70,6 +73,7 @@ impl Device {
         self.irq_sender.clear().unwrap();
         *self.queue_sel.borrow_mut() = 0;
         *self.status.borrow_mut() = 0;
+        *self.device_features_sel.borrow_mut() = 0;
         for q in self.queues.iter() {
             q.reset()
         }
@@ -108,7 +112,24 @@ pub trait DeviceAccess {
 
     fn vendor_id(&self) -> u32 { self.device().vendor_id }
 
-    fn device_features(&self) -> u32 { self.device().device_features }
+    fn device_features(&self) -> u32 {
+        let sel = self.device().device_features_sel.borrow();
+        if *sel == 0 {
+            self.device().device_features
+        } else if *sel == 1 {
+            1
+        } else {
+            0
+        }
+    }
+
+    fn device_features_sel(&self) -> u32 {
+        *self.device().device_features_sel.borrow()
+    }
+
+    fn set_device_features_sel(&self, val: &u32) {
+        *self.device().device_features_sel.borrow_mut() = *val
+    }
 
     fn queue_sel(&self) -> u32 { *self.device().queue_sel.borrow() }
 
@@ -211,6 +232,7 @@ pub trait MMIODevice: DeviceAccess {
                 MMIO_DEVICE_ID => self.device_id(),
                 MMIO_VENDOR_ID => self.vendor_id(),
                 MMIO_DEVICE_FEATURES => self.device_features(),
+                MMIO_DEVICE_FEATURES_SEL => self.device_features_sel(),
                 MMIO_QUEUE_SEL => self.queue_sel(),
                 MMIO_QUEUE_NUM_MAX => self.queue_num_max(),
                 MMIO_QUEUE_NUM => self.queue_num(),
@@ -236,6 +258,7 @@ pub trait MMIODevice: DeviceAccess {
         }
         if (*offset).trailing_zeros() > 1 {
             match *offset {
+                MMIO_DEVICE_FEATURES_SEL => self.set_device_features_sel(val),
                 MMIO_QUEUE_SEL => self.set_queue_sel(val),
                 MMIO_QUEUE_NUM => self.set_queue_num(val),
                 MMIO_QUEUE_DESC_LOW => self.set_queue_desc_low(val),
