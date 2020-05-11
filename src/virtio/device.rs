@@ -189,7 +189,8 @@ pub trait DeviceAccess {
 pub trait MMIODevice: DeviceAccess {
     fn read_bytes(&self, offset: &u64, data: &mut [u8]) {
         let len = data.len();
-        data[..len].copy_from_slice(&self.read(offset).to_le_bytes())
+        let res = MMIODevice::read(self, offset).to_le_bytes();
+        data.copy_from_slice(&res[..len])
     }
 
     fn write_bytes(&self, offset: &u64, data: &[u8]) {
