@@ -35,7 +35,8 @@ pub struct QueueSetting {
     pub max_queue_size: u16,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[repr(C)]
 pub struct DescMeta {
     pub addr: u64,
     pub len: u32,
@@ -43,47 +44,20 @@ pub struct DescMeta {
     pub next: u16,
 }
 
-impl DescMeta {
-    fn empty() -> DescMeta {
-        DescMeta {
-            addr: 0,
-            len: 0,
-            flags: 0,
-            next: 0,
-        }
-    }
-}
-
-
+#[derive(Default)]
+#[repr(C)]
 pub struct RingMetaHeader {
     flags: u16,
     idx: u16,
 }
 
-impl RingMetaHeader {
-    pub fn empty() -> RingMetaHeader {
-        RingMetaHeader {
-            flags: 0,
-            idx: 0,
-        }
-    }
-}
-
 pub type RingAvailMetaElem = u16;
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Default)]
+#[repr(C)]
 pub struct RingUsedMetaElem {
     pub id: u32,
     pub len: u32,
-}
-
-impl RingUsedMetaElem {
-    pub fn empty() -> RingUsedMetaElem {
-        RingUsedMetaElem {
-            id: 0,
-            len: 0,
-        }
-    }
 }
 
 pub struct Queue {
@@ -240,7 +214,7 @@ impl Queue {
     }
 
     pub fn get_desc(&self, idx: u16) -> Result<DescMeta> {
-        let mut desc = DescMeta::empty();
+        let mut desc = DescMeta::default();
         SizedAccess::read(self.memory.deref(), &self.desc_addr(idx)?, &mut desc);
         Ok(desc)
     }
@@ -274,7 +248,7 @@ impl Queue {
     }
 
     pub fn get_used_elem(&self, used_idx: u16) -> Result<RingUsedMetaElem> {
-        let mut elem = RingUsedMetaElem::empty();
+        let mut elem = RingUsedMetaElem::default();
         SizedAccess::read(self.memory.deref(), &self.used_elem_addr(used_idx), &mut elem);
         Ok(elem)
     }
@@ -505,7 +479,7 @@ impl QueueServer for DefaultQueueServer {
         self.avail_region = Some(avail_region);
         self.used_region = Some(used_region);
         queue.check_init()?;
-        let mut descs = vec![DescMeta::empty(); queue.get_queue_size()];
+        let mut descs = vec![DescMeta::default(); queue.get_queue_size()];
         for i in 0..(descs.len() - 1) {
             descs[i].flags |= DESC_F_NEXT;
             descs[i].next = i as u16 + 1;
@@ -669,7 +643,7 @@ fn avail_iter_test() {
             flags: 0,
             idx: 0,
         },
-        ring: [RingUsedMetaElem::empty(); QUEUE_SIZE],
+        ring: [RingUsedMetaElem::default(); QUEUE_SIZE],
     };
     let used_mem = heap.alloc(mem::size_of_val(&used_ring) as u64, 2).unwrap();
     queue.set_desc_addr(desc_mem.info.base);
