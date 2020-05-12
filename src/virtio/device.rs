@@ -83,8 +83,8 @@ impl Device {
     }
 
     pub fn add_queue(&mut self, queue: Queue) {
-        self.queues.push(queue);
         assert!(self.queues.len() < (MAX_QUEUE as usize));
+        self.queues.push(queue);
     }
 
     pub fn get_queue(&self, id: usize) -> &Queue {
