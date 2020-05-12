@@ -118,11 +118,11 @@ impl AccessTrait {
                 }
             },
             AccessTrait::Bytes => quote! {
-                fn write(&self, addr: &u64, _: &[u8]) -> Result<usize, String>{
+                fn write(&self, addr: &u64, _: &[u8]) -> std::result::Result<usize, String>{
                         panic!(#write_msg)
                 }
 
-                fn read(&self, addr: &u64, _: &mut [u8]) -> Result<usize, String> {
+                fn read(&self, addr: &u64, _: &mut [u8]) -> std::result::Result<usize, String> {
                         panic!(#read_msg)
                 }
             },
