@@ -13,8 +13,8 @@ use crate::memory::allocator::{Allocator, LockedAllocator};
 
 
 pub trait BytesAccess {
-    fn write(&self, addr: &u64, data: &[u8]);
-    fn read(&self, addr: &u64, data: &mut [u8]);
+    fn write(&self, addr: &u64, data: &[u8]) -> Result<usize, String>;
+    fn read(&self, addr: &u64, data: &mut [u8]) -> Result<usize, String>;
 }
 
 pub trait U8Access {
@@ -24,24 +24,24 @@ pub trait U8Access {
 
 pub trait SizedAccess: BytesAccess {
     fn write<T: Sized>(&self, addr: &u64, data: &T) {
-        BytesAccess::write(self, addr, unsafe { std::slice::from_raw_parts((data as *const T) as *const u8, std::mem::size_of::<T>()) })
+        BytesAccess::write(self, addr, unsafe { std::slice::from_raw_parts((data as *const T) as *const u8, std::mem::size_of::<T>()) }).unwrap();
     }
 
     fn read<T: Sized>(&self, addr: &u64, data: &mut T) {
-        BytesAccess::read(self, addr, unsafe { std::slice::from_raw_parts_mut((data as *mut T) as *mut u8, std::mem::size_of::<T>()) })
+        BytesAccess::read(self, addr, unsafe { std::slice::from_raw_parts_mut((data as *mut T) as *mut u8, std::mem::size_of::<T>()) }).unwrap();
     }
 }
 
 pub trait U16Access: BytesAccess {
     fn write(&self, addr: &u64, data: u16) {
         assert!(addr.trailing_zeros() > 0, format!("U16Access:unaligned addr:{:#x}", *addr));
-        BytesAccess::write(self, addr, &data.to_le_bytes())
+        BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
 
     fn read(&self, addr: &u64) -> u16 {
         assert!(addr.trailing_zeros() > 0, format!("U16Access:unaligned addr:{:#x}", *addr));
         let mut bytes = [0 as u8; size_of::<u16>()];
-        BytesAccess::read(self, addr, &mut bytes);
+        BytesAccess::read(self, addr, &mut bytes).unwrap();
         u16::from_le_bytes(bytes)
     }
 }
@@ -49,13 +49,13 @@ pub trait U16Access: BytesAccess {
 pub trait U32Access: BytesAccess {
     fn write(&self, addr: &u64, data: u32) {
         assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", *addr));
-        BytesAccess::write(self, addr, &data.to_le_bytes())
+        BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
 
     fn read(&self, addr: &u64) -> u32 {
         assert!(addr.trailing_zeros() > 1, format!("U32Access:unaligned addr:{:#x}", *addr));
         let mut bytes = [0 as u8; size_of::<u32>()];
-        BytesAccess::read(self, addr, &mut bytes);
+        BytesAccess::read(self, addr, &mut bytes).unwrap();
         u32::from_le_bytes(bytes)
     }
 }
@@ -63,13 +63,13 @@ pub trait U32Access: BytesAccess {
 pub trait U64Access: BytesAccess {
     fn write(&self, addr: &u64, data: u64) {
         assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", *addr));
-        BytesAccess::write(self, addr, &data.to_le_bytes())
+        BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
 
     fn read(&self, addr: &u64) -> u64 {
         assert!(addr.trailing_zeros() > 2, format!("U64Access:unaligned addr:{:#x}", *addr));
         let mut bytes = [0 as u8; size_of::<u64>()];
-        BytesAccess::read(self, addr, &mut bytes);
+        BytesAccess::read(self, addr, &mut bytes).unwrap();
         u64::from_le_bytes(bytes)
     }
 }
@@ -116,13 +116,14 @@ impl U8Access for LazyModel {
 }
 
 impl BytesAccess for LazyModel {
-    fn write(&self, addr: &u64, data: &[u8]) {
+    fn write(&self, addr: &u64, data: &[u8])  -> Result<usize, String>{
         {
             data.iter().enumerate().for_each(|(offset, d)| { self.inner.borrow_mut().insert(*addr + offset as u64, *d); });
         }
+        Ok(data.len())
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> Result<usize, String> {
         {
             data.iter_mut().enumerate().for_each(|(offset, d)| {
                 *d = if let Some(&v) = self.inner.borrow().get(&(*addr + offset as u64)) {
@@ -132,6 +133,7 @@ impl BytesAccess for LazyModel {
                 }
             });
         }
+        Ok(data.len())
     }
 }
 
@@ -170,14 +172,16 @@ impl U8Access for Model {
 }
 
 impl BytesAccess for Model {
-    fn write(&self, addr: &u64, data: &[u8]) {
+    fn write(&self, addr: &u64, data: &[u8]) -> Result<usize, String> {
         let offset = (*addr - self.info.base) as usize;
         self.inner.borrow_mut()[offset..offset + data.len()].copy_from_slice(data);
+        Ok(data.len())
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> Result<usize, String> {
         let offset = (*addr - self.info.base) as usize;
         data.copy_from_slice(&self.inner.borrow()[offset..offset + data.len()]);
+        Ok(data.len())
     }
 }
 
@@ -277,11 +281,11 @@ impl U64Access for Memory {
 }
 
 impl BytesAccess for Memory {
-    fn write(&self, addr: &u64, data: &[u8]) {
+    fn write(&self, addr: &u64, data: &[u8]) -> Result<usize, String> {
         memory_access!(BytesAccess, write, self, addr, data)
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> Result<usize, String> {
         memory_access!(BytesAccess, read, self, addr, data)
     }
 }
@@ -380,7 +384,7 @@ impl U8Access for Region {
 }
 
 impl BytesAccess for Region {
-    fn write(&self, addr: &u64, data: &[u8]) {
+    fn write(&self, addr: &u64, data: &[u8]) -> Result<usize, String> {
         if let Some(ref a) = self.translate(addr, data.len()) {
             BytesAccess::write(&self.memory, a, data)
         } else {
@@ -388,7 +392,7 @@ impl BytesAccess for Region {
         }
     }
 
-    fn read(&self, addr: &u64, data: &mut [u8]) {
+    fn read(&self, addr: &u64, data: &mut [u8]) -> Result<usize, String> {
         if let Some(ref a) = self.translate(addr, data.len()) {
             BytesAccess::read(&self.memory, a, data)
         } else {

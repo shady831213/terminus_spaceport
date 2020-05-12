@@ -1,5 +1,4 @@
 extern crate terminus_spaceport;
-#[macro_use]
 extern crate lazy_static;
 
 use std::thread::sleep;
@@ -29,7 +28,7 @@ fn cleanup() {
 }
 
 fn main() {
-    let a = A();
+    let _a = A();
     TERM.stdout().lock().write("Hello World!\n".as_bytes()).unwrap();
     TERM.stdout().lock().flush().unwrap();
     'outer: loop {

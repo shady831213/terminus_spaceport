@@ -145,14 +145,22 @@ impl Space {
         Ok(U64Access::read(region.deref(), addr))
     }
 
-    pub fn write_bytes(&self, addr: &u64, data: &[u8]) -> Result<(), u64> {
+    pub fn write_bytes(&self, addr: &u64, data: &[u8]) -> Result<usize, u64> {
         let region = self.get_region_by_addr(addr)?;
-        Ok(BytesAccess::write(region.deref(), addr, data))
+        if let Ok(size) = BytesAccess::write(region.deref(), addr, data) {
+            Ok(size)
+        } else {
+            Err(*addr)
+        }
     }
 
-    pub fn read_bytes(&self, addr: &u64, data: &mut [u8]) -> Result<(), u64> {
+    pub fn read_bytes(&self, addr: &u64, data: &mut [u8]) -> Result<usize, u64> {
         let region = self.get_region_by_addr(addr)?;
-        Ok(BytesAccess::read(region.deref(), addr, data))
+        if let Ok(size) = BytesAccess::read(region.deref(), addr, data) {
+            Ok(size)
+        } else {
+            Err(*addr)
+        }
     }
 
     pub fn clean(&mut self, name: &str, ptr: *const Box<Rc<Region>>) {

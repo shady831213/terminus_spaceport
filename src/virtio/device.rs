@@ -4,14 +4,13 @@ use crate::irq::{IrqVec, IrqVecSender};
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::virtio::{MAX_QUEUE,
-                    MAX_QUEUE_NUM,
                     MMIO_MAGIC_VALUE,
                     MMIO_VERSION,
                     MMIO_DEVICE_ID,
                     MMIO_VENDOR_ID,
                     MMIO_DEVICE_FEATURES,
                     MMIO_DEVICE_FEATURES_SEL,
-                    MMIO_DRIVER_FEATURES,
+                    // MMIO_DRIVER_FEATURES,
                     MMIO_QUEUE_SEL,
                     MMIO_QUEUE_NUM_MAX,
                     MMIO_QUEUE_NUM,
@@ -48,7 +47,7 @@ impl Device {
                device_id: u32,
                vendor_id: u32,
                device_features: u32) -> Device {
-        let mut irq_vec = IrqVec::new(num_irqs);
+        let irq_vec = IrqVec::new(num_irqs);
         for i in 0..num_irqs {
             let s = irq_sender.clone();
             irq_vec.binder().bind(i, move || {

@@ -1,4 +1,5 @@
-use crate::memory::region::{Region, GHEAP, Heap, SizedAccess, U16Access};
+#![allow(dead_code)]
+use crate::memory::region::{Region, Heap, SizedAccess, U16Access};
 use std::{mem, result};
 use std::ops::Deref;
 use std::cmp::min;
@@ -598,6 +599,9 @@ impl QueueServer for DefaultQueueServer {
         Ok(())
     }
 }
+
+#[cfg(test)]
+use crate::memory::region::GHEAP;
 
 #[cfg(test)]
 struct DummyClient();

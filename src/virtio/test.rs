@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use super::queue::{Queue, QueueSetting, RingUsedMetaElem, QueueClient, DefaultQueueServer, QueueServer};
 use crate::memory::region::{Region, BytesAccess, GHEAP, Heap, U32Access};
 use std::ops::Deref;
@@ -185,9 +186,9 @@ impl TestDeviceDriver {
             let used = self.input_server.pop_used(queue).unwrap();
             let mut output = vec![];
             queue.desc_iter(used.id as u16).for_each(|desc_res| {
-                let (idx, desc) = desc_res.unwrap();
+                let (_, desc) = desc_res.unwrap();
                 let mut desc_buf: Vec<u8> = vec![0; desc.len as usize];
-                BytesAccess::read(self.heap.get_region().deref(), &desc.addr, &mut desc_buf);
+                BytesAccess::read(self.heap.get_region().deref(), &desc.addr, &mut desc_buf).unwrap();
                 output.append(&mut desc_buf);
             });
             assert_eq!(used, RingUsedMetaElem { id: 0, len: 4 });
@@ -206,7 +207,7 @@ impl TestDeviceDriver {
             self.output_server.free_used(queue, &used, false)?;
         }
         let output_buffer = self.heap.alloc(input.len() as u64, 4).unwrap();
-        BytesAccess::write(output_buffer.deref(), &output_buffer.info.base, input);
+        BytesAccess::write(output_buffer.deref(), &output_buffer.info.base, input).unwrap();
         let head = self.output_server.add_to_queue(queue, &vec![].as_slice(), &vec![output_buffer.deref()].as_slice())?;
         self.output_server.notify_queue(queue, head)?;
         Ok(input.len())
