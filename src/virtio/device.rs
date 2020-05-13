@@ -203,7 +203,7 @@ pub trait DeviceAccess {
             0 => 0xff,
             1 => 0xffff,
             2 => 0xffff_ffff,
-            _ => 0
+            _ => 0xffffffff_ffffffff
         }
     }
 
