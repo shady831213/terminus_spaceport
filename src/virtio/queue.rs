@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+
 use crate::memory::region::{Region, Heap, SizedAccess, U16Access};
 use std::{mem, result};
 use std::ops::Deref;
@@ -311,6 +312,10 @@ impl Queue {
 
     pub fn update_last_avail(&self) {
         *self.last_avail_idx.borrow_mut() += Wrapping(1);
+    }
+
+    pub fn last_avail(&self) -> u16 {
+        self.last_avail_idx.borrow().0
     }
 
     pub fn notify_client(&self) -> Result<()> {
