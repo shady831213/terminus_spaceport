@@ -11,13 +11,13 @@ pub struct TunTap {
 }
 
 impl TunTap {
-    pub fn new(ifname: &str, mode: TUNTAP_MODE, packet_info: bool, nonblock: bool) -> std::io::Result<TunTap> {
+    pub fn new(ifname: &str, mode: TUNTAP_MODE, packet_info: bool, non_block: bool) -> std::io::Result<TunTap> {
         let iface = if packet_info {
             Iface::new(ifname, mode)?
         } else {
             Iface::without_packet_info(ifname, mode)?
         };
-        if nonblock {
+        if non_block {
             let fd = iface.as_raw_fd();
             let mut nonblock: c_int = 1;
             let result = unsafe { libc::ioctl(fd, libc::FIONBIO, &mut nonblock) };
