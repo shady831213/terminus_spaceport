@@ -198,6 +198,15 @@ pub trait DeviceAccess {
 
     fn set_config(&self, _: u64, _: &u32) {}
 
+    fn config_mask(&self, offset:&u64) -> u64 {
+        match (*offset).trailing_zeros() {
+            0 => 0xff,
+            1 => 0xffff,
+            2 => 0xffff_ffff,
+            _ => 0
+        }
+    }
+
     fn queue_notify(&self, val: &u32) {
         let id = *val as usize;
         if id < self.device().queues.len() {
