@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::memory::region::{Region, Heap, SizedAccess, U16Access};
+use crate::memory::region::{Region, Heap, SizedAccess, U16Access, BytesAccess};
 use std::{mem, result};
 use std::ops::Deref;
 use std::cmp::min;
@@ -316,6 +316,49 @@ impl Queue {
 
     pub fn last_avail(&self) -> u16 {
         self.last_avail_idx.borrow().0
+    }
+
+    pub fn extract(&self, desc_head: u16, read_buffer: &mut Vec<u8>, write_buffer: &mut Vec<u8>, read_descs: &mut Vec<DescMeta>, write_descs: &mut Vec<DescMeta>) -> Result<(usize, usize)> {
+        let mut read_len: usize = 0;
+        let mut write_len: usize = 0;
+        read_descs.clear();
+        write_descs.clear();
+        read_buffer.clear();
+        write_buffer.clear();
+        for desc_res in self.desc_iter(desc_head) {
+            let (_, desc) = desc_res?;
+            if desc.flags & DESC_F_WRITE != 0 {
+                read_len += desc.len as usize;
+                read_descs.push(desc);
+            } else {
+                write_len += desc.len as usize;
+                write_descs.push(desc);
+            }
+        }
+        read_buffer.resize(read_len, 0);
+        write_buffer.resize(write_len, 0);
+        let mut offset: usize = 0;
+        for desc in write_descs.iter() {
+            let next_offset = offset + desc.len as usize;
+            BytesAccess::read(self.memory.deref(), &desc.addr, &mut write_buffer[offset..next_offset]).unwrap();
+            offset = next_offset;
+        }
+        Ok((read_len, write_len))
+    }
+
+    pub fn copy_to(&self, desc_head: u16, data: &[u8]) -> Result<()> {
+        let mut offset: usize = 0;
+        for desc_res in self.desc_iter(desc_head) {
+            let (_, ref desc) = desc_res?;
+            let len = min(desc.len as usize, data.len() - offset);
+            let next_offset = offset + len;
+            BytesAccess::write(self.memory.deref(), &desc.addr, &data[offset..next_offset]).unwrap();
+            if next_offset >= data.len() {
+                break;
+            }
+            offset = next_offset;
+        }
+        Ok(())
     }
 
     pub fn notify_client(&self) -> Result<()> {
