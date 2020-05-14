@@ -359,7 +359,7 @@ impl Queue {
         Ok((read_len, write_len))
     }
 
-    pub fn copy_to(&self, read_descs: &[DescMeta], data: &[u8]) -> Result<()> {
+    pub fn copy_to(&self, read_descs: &Vec<DescMeta>, data: &Vec<u8>) -> Result<()> {
         let mut offset: usize = 0;
         for desc in read_descs.iter() {
             let len = min(desc.len as usize, data.len() - offset);
