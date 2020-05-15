@@ -8,7 +8,7 @@ use std::num::Wrapping;
 use std::marker::PhantomData;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::virtio::{DESC_F_NEXT, DESC_F_WRITE, MAX_QUEUE_NUM};
+use crate::virtio::{DESC_F_NEXT, DESC_F_WRITE};
 
 #[derive(Debug)]
 pub enum Error {
@@ -76,7 +76,6 @@ pub struct Queue {
 impl Queue {
     pub fn new(memory: &Rc<Region>, setting: QueueSetting, client: impl QueueClient + 'static) -> Queue {
         // assert!(max_queue_size.is_power_of_two());
-        assert!(setting.max_queue_size <= MAX_QUEUE_NUM);
         let max_queue_size = setting.max_queue_size;
         Queue {
             setting,

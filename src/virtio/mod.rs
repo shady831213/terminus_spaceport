@@ -1,5 +1,4 @@
 const MAX_QUEUE: u32 = 8;
-const MAX_QUEUE_NUM: u16 = 16;
 
 const MMIO_MAGIC_VALUE: u64 = 0x000;
 const MMIO_VERSION: u64 = 0x004;
