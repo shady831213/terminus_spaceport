@@ -28,6 +28,7 @@ impl SDL {
         let video_subsystem = context.video()?;
         let window = video_subsystem.window(title, width as u32, height as u32)
             .position_centered()
+            .opengl()
             .build()
             .map_err(|e| e.to_string())?;
 
@@ -126,7 +127,6 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M:Mouse>(&self, fb: &FB, k: &K, m:&M) -> Result<(), String> {
         fb.refresh(self)?;
-        self.canvas.borrow_mut().present();
         let mut event_pump = self.context.event_pump()?;
         for event in event_pump.poll_iter() {
             match event {
@@ -154,6 +154,7 @@ impl Display for SDL {
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
         canvas.copy(&texture, Some(rect), Some(rect))?;
+        canvas.present();
         Ok(())
     }
 }
