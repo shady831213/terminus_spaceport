@@ -9,7 +9,7 @@ use crate::devices::display::{FrameBuffer, Display, KeyBoard, Mouse, MOUSE_BTN_L
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::{PixelFormatEnum, Color};
+use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::WindowContext;
 
 pub struct SDL {
@@ -32,8 +32,6 @@ impl SDL {
             .map_err(|e| e.to_string())?;
 
         let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        //fixme:scratching
-        canvas.set_draw_color(Color::RGB(255, 255, 255));
         canvas.clear();
         canvas.present();
         let texture_creator = canvas.texture_creator();
