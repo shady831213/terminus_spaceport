@@ -13,8 +13,11 @@ pub const MOUSE_BTN_RIGHT:u32 = 0x2;
 pub const MOUSE_BTN_MIDDLE:u32 = 0x3;
 
 
-pub trait DisplayInput {
+pub trait KeyBoard {
     fn send_key_event(&self, key_down: bool, val: u32);
+}
+
+pub trait Mouse{
     fn send_mouse_event(&self, x: i32, y: i32, z: i32, buttons: u32);
     fn mouse_absolute(&self)->bool;
 }
