@@ -1,7 +1,6 @@
 extern crate sdl2;
 
-use self::sdl2::Sdl;
-use self::sdl2::render::{WindowCanvas, TextureCreator};
+use self::sdl2::EventPump;
 use std::cell::RefCell;
 use self::sdl2::rect::Rect;
 use self::sdl2::event::Event;
@@ -10,12 +9,12 @@ use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::video::WindowContext;
+use self::sdl2::video::Window;
+use std::ops::Deref;
 
 pub struct SDL {
-    context: Sdl,
-    canvas: RefCell<WindowCanvas>,
-    texture_creator: TextureCreator<WindowContext>,
+    event_pump: RefCell<EventPump>,
+    window: Window,
     width: usize,
     height: usize,
     key_pressed: RefCell<[bool; 256]>,
@@ -28,21 +27,15 @@ impl SDL {
         let video_subsystem = context.video()?;
         let window = video_subsystem.window(title, width as u32, height as u32)
             .position_centered()
-            .opengl()
             .build()
             .map_err(|e| e.to_string())?;
 
-        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        canvas.clear();
-        canvas.present();
-        let texture_creator = canvas.texture_creator();
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
         Ok(SDL {
-            context,
-            canvas: RefCell::new(canvas),
-            texture_creator,
+            event_pump:RefCell::new(context.event_pump()?),
+            window,
             width,
             height,
             key_pressed: RefCell::new([false; 256]),
@@ -127,8 +120,7 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M:Mouse>(&self, fb: &FB, k: &K, m:&M) -> Result<(), String> {
         fb.refresh(self)?;
-        let mut event_pump = self.context.event_pump()?;
-        for event in event_pump.poll_iter() {
+        for event in self.event_pump.borrow_mut().poll_iter() {
             match event {
                 Event::Quit { .. } => {
                     (*&self.quit)()
@@ -149,12 +141,10 @@ impl SDL {
 impl Display for SDL {
     fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
         let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
-        let texture = self.texture_creator.create_texture_from_surface(&surface)
-            .map_err(|e| e.to_string())?;
-        let mut canvas = self.canvas.borrow_mut();
+        let event_pump = self.event_pump.borrow();
+        let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        canvas.copy(&texture, Some(rect), Some(rect))?;
-        canvas.present();
-        Ok(())
+        surface.blit_scaled(rect, &mut screen, rect)?;
+        screen.update_window()
     }
 }
