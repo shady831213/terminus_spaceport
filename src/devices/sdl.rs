@@ -126,6 +126,7 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M:Mouse>(&self, fb: &FB, k: &K, m:&M) -> Result<(), String> {
         fb.refresh(self)?;
+        self.canvas.borrow_mut().present();
         let mut event_pump = self.context.event_pump()?;
         for event in event_pump.poll_iter() {
             match event {
@@ -153,7 +154,6 @@ impl Display for SDL {
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
         canvas.copy(&texture, Some(rect), Some(rect))?;
-        canvas.present();
         Ok(())
     }
 }
