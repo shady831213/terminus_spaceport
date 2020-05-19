@@ -146,20 +146,14 @@ impl SDL {
 }
 
 impl Display for SDL {
-    fn draw(&self, data: &mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, w, h, w * 4, PixelFormatEnum::ARGB8888)?;
+    fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
         let texture = self.texture_creator.create_texture_from_surface(&surface)
             .map_err(|e| e.to_string())?;
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
-        canvas.copy(&texture, None, Some(rect))?;
+        canvas.copy(&texture, Some(rect), Some(rect))?;
         canvas.present();
         Ok(())
-    }
-    fn width(&self) -> usize {
-        self.width
-    }
-    fn height(&self) -> usize {
-        self.height
     }
 }
