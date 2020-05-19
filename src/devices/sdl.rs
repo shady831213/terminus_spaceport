@@ -156,4 +156,10 @@ impl Display for SDL {
         canvas.present();
         Ok(())
     }
+    fn width(&self) -> usize {
+        self.width
+    }
+    fn height(&self) -> usize {
+        self.height
+    }
 }
