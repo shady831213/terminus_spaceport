@@ -32,7 +32,9 @@ impl SDL {
             .build()
             .map_err(|e| e.to_string())?;
 
-        let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        canvas.clear();
+        canvas.present();
         let texture_creator = canvas.texture_creator();
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
@@ -151,7 +153,6 @@ impl Display for SDL {
             .map_err(|e| e.to_string())?;
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
-        canvas.clear();
         canvas.copy(&texture, None, Some(rect))?;
         canvas.present();
         Ok(())
