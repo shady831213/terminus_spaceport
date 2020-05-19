@@ -8,7 +8,7 @@ use self::sdl2::rect::Rect;
 use self::sdl2::event::Event;
 use crate::devices::display::{DisplayInput, MOUSE_BTN_LEFT, MOUSE_BTN_RIGHT, MOUSE_BTN_MIDDLE};
 use self::sdl2::keyboard::Keycode;
-use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection};
+use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 pub use self::sdl2::*;
 
 pub trait SDLFrameBuffer: FrameBuffer {
@@ -36,6 +36,9 @@ impl<FB: SDLFrameBuffer, I: DisplayInput> SDL<FB, I> {
             .map_err(|e| e.to_string())?;
 
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let cursor_data = vec![0;1];
+        let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
+        cursor.set();
         Ok(SDL {
             context,
             canvas: RefCell::new(canvas),
