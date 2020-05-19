@@ -147,7 +147,7 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data: &mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, w, h, w * 4, PixelFormatEnum::RGB888)?;
+        let surface = Surface::from_data(data, w, h, w * 4, PixelFormatEnum::ARGB8888)?;
         let texture = self.texture_creator.create_texture_from_surface(&surface)
             .map_err(|e| e.to_string())?;
         let mut canvas = self.canvas.borrow_mut();
