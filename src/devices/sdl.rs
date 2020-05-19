@@ -152,7 +152,6 @@ impl Display for SDL {
             .map_err(|e| e.to_string())?;
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
-        canvas.clear();
         canvas.copy(&texture, None, Some(rect))?;
         canvas.present();
         Ok(())
