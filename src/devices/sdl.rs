@@ -1,7 +1,7 @@
 extern crate sdl2;
 
 use self::sdl2::Sdl;
-use self::sdl2::render::{WindowCanvas, Texture};
+use self::sdl2::render::{WindowCanvas, TextureCreator};
 use crate::devices::{FrameBuffer, Display};
 use std::cell::RefCell;
 use self::sdl2::rect::Rect;
@@ -9,15 +9,14 @@ use self::sdl2::event::Event;
 use crate::devices::display::{DisplayInput, MOUSE_BTN_LEFT, MOUSE_BTN_RIGHT, MOUSE_BTN_MIDDLE};
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
-pub use self::sdl2::*;
+use self::sdl2::surface::Surface;
+use self::sdl2::pixels::PixelFormatEnum;
+use self::sdl2::video::WindowContext;
 
-pub trait SDLFrameBuffer: FrameBuffer {
-    fn texture(&self) -> Result<&Texture, String>;
-}
-
-pub struct SDL<FB: SDLFrameBuffer, I: DisplayInput> {
+pub struct SDL<FB: FrameBuffer, I: DisplayInput> {
     context: Sdl,
     canvas: RefCell<WindowCanvas>,
+    texture_creator:TextureCreator<WindowContext>,
     width: usize,
     height: usize,
     fb: FB,
@@ -26,7 +25,7 @@ pub struct SDL<FB: SDLFrameBuffer, I: DisplayInput> {
     input: I,
 }
 
-impl<FB: SDLFrameBuffer, I: DisplayInput> SDL<FB, I> {
+impl<FB: FrameBuffer, I: DisplayInput> SDL<FB, I> {
     pub fn new<QF: Fn() + 'static>(title: &str, fb: FB, width: usize, height: usize, quit: QF, input: I) -> Result<SDL<FB, I>, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
@@ -36,12 +35,14 @@ impl<FB: SDLFrameBuffer, I: DisplayInput> SDL<FB, I> {
             .map_err(|e| e.to_string())?;
 
         let canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let texture_creator = canvas.texture_creator();
         let cursor_data = vec![0;1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
         Ok(SDL {
             context,
             canvas: RefCell::new(canvas),
+            texture_creator,
             width,
             height,
             fb,
@@ -147,13 +148,15 @@ impl<FB: SDLFrameBuffer, I: DisplayInput> SDL<FB, I> {
     }
 }
 
-impl<FB: SDLFrameBuffer, I: DisplayInput> Display for SDL<FB, I> {
-    fn draw(&self, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let texture = self.fb.texture()?;
+impl<FB: FrameBuffer, I: DisplayInput> Display for SDL<FB, I> {
+    fn draw(&self, data:&mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface = Surface::from_data(data, w, h, w*h*4, PixelFormatEnum::RGB888)?;
+        let texture = self.texture_creator.create_texture_from_surface(&surface)
+            .map_err(|e| e.to_string())?;
         let mut canvas = self.canvas.borrow_mut();
         let rect = Rect::new(x, y, w, h);
         canvas.clear();
-        canvas.copy(texture, Some(rect), Some(rect))?;
+        canvas.copy(&texture, None, Some(rect))?;
         canvas.present();
         Ok(())
     }
