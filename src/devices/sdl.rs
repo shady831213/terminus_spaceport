@@ -33,8 +33,10 @@ impl SDL {
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
+        let even_pump = context.event_pump()?;
+        window.surface(&even_pump)?.update_window()?;
         Ok(SDL {
-            event_pump:RefCell::new(context.event_pump()?),
+            event_pump:RefCell::new(even_pump),
             window,
             width,
             height,
