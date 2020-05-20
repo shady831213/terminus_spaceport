@@ -122,7 +122,10 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M:Mouse>(&self, fb: &FB, k: &K, m:&M) -> Result<(), String> {
         fb.refresh(self)?;
-        for event in self.event_pump.borrow_mut().poll_iter() {
+        let mut event_pump = self.event_pump.borrow_mut();
+        let screen = self.window.surface(event_pump.deref())?;
+        screen.update_window()?;
+        for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
                     (*&self.quit)()
@@ -153,9 +156,9 @@ impl Display for SDL {
         let rect = Rect::new(x, y, w, h);
         surface.blit_scaled(rect, &mut screen, rect)?;
         eprintln!("blit {} nanos!", blit_start.elapsed().as_nanos());
-        let update_start = std::time::Instant::now();
-        screen.update_window_rects(&[rect])?;
-        eprintln!("update {} nanos!", update_start.elapsed().as_nanos());
+        // let update_start = std::time::Instant::now();
+        // screen.update_window_rects(&[rect])?;
+        // eprintln!("update {} nanos!", update_start.elapsed().as_nanos());
         Ok(())
     }
 }
