@@ -135,7 +135,6 @@ impl SDL {
         //     screen.update_window_rects(&rects)?;
         //     rects.clear();
         // }
-        self.canvas.borrow_mut().present();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
@@ -166,6 +165,8 @@ impl Display for SDL {
         let mut texture = self.texture_creator.create_texture_streaming(PixelFormatEnum::ARGB8888, w, h).map_err(|e|{e.to_string()})?;
         let src = Rect::new(0, 0, w, h);
         texture.update(src,&data[x as usize * fb_stride as usize.. y as usize * fb_stride as usize], fb_stride as usize).map_err(|e|{e.to_string()})?;
-        self.canvas.borrow_mut().copy(&texture, Some(src), Some(Rect::new(x, y, w,h)))
+        self.canvas.borrow_mut().copy(&texture, Some(src), Some(Rect::new(x, y, w,h)));
+        self.canvas.borrow_mut().present();
+        Ok(())
     }
 }
