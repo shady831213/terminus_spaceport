@@ -11,7 +11,6 @@ use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::Window;
 use std::ops::Deref;
-pub use sdl2::*;
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
@@ -157,7 +156,7 @@ impl Display for SDL {
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        surface.blit(Rect::new(0, 0, w, h), &mut screen, rect)?;
+        unsafe {surface.lower_blit(Rect::new(0, 0, w, h), &mut screen, rect)}?;
         self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
