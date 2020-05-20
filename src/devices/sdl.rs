@@ -8,9 +8,8 @@ use crate::devices::display::{FrameBuffer, KeyBoard, Mouse, MOUSE_BTN_LEFT, MOUS
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::video::{Window, WindowContext, DisplayMode};
-use self::sdl2::render::{Canvas, TextureCreator};
+use self::sdl2::pixels::{PixelFormatEnum, Color};
+use self::sdl2::video::{Window, DisplayMode};
 use crate::devices::PixelFormat;
 
 impl PixelFormat {
@@ -24,8 +23,7 @@ impl PixelFormat {
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
-    canvas: RefCell<Canvas<Window>>,
-    texture_creator: TextureCreator<WindowContext>,
+    window: Window,
     width: usize,
     height: usize,
     key_pressed: RefCell<[bool; 256]>,
@@ -33,7 +31,7 @@ pub struct SDL {
 }
 
 impl SDL {
-    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, format:PixelFormat, quit: QF) -> Result<SDL, String> {
+    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, format: PixelFormat, quit: QF) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
         let mut window = video_subsystem.window(title, width as u32, height as u32)
@@ -41,17 +39,16 @@ impl SDL {
             .build()
             .map_err(|e| e.to_string())?;
         window.set_display_mode(DisplayMode::new(format.sdl2format(), width as i32, height as i32, 60))?;
-        let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
-        let texture_creator = canvas.texture_creator();
-        canvas.clear();
-        canvas.present();
+        let event_pump = context.event_pump()?;
+        let mut screen = window.surface(&event_pump)?;
+        screen.fill_rect(Rect::new(0, 0, width as u32, height as u32), Color::BLACK)?;
+        screen.update_window()?;
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
         Ok(SDL {
-            event_pump: RefCell::new(context.event_pump()?),
-            canvas: RefCell::new(canvas),
-            texture_creator,
+            event_pump: RefCell::new(event_pump),
+            window,
             width,
             height,
             key_pressed: RefCell::new([false; 256]),
@@ -135,15 +132,17 @@ impl SDL {
 
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
+        let mut event_pump = self.event_pump.borrow_mut();
         let mut data = fb.data();
         let surface = Surface::from_data(&mut data, fb.width(), fb.height(), fb.stride(), fb.pixel_format().sdl2format())?;
-        let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
+        let screen = self.window.surface(&event_pump)?;
         fb.refresh(|x, y, w, h| {
             let rect = Rect::new(x, y, w, h);
-            self.canvas.borrow_mut().copy(&texture, rect, rect)
+            let mut s = self.window.surface(&event_pump)?;
+            unsafe { surface.lower_blit(rect, &mut s, rect) }?;
+            Ok(())
         })?;
-        let mut event_pump = self.event_pump.borrow_mut();
-        self.canvas.borrow_mut().present();
+        screen.update_window()?;
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
