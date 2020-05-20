@@ -9,16 +9,17 @@ use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::video::Window;
+use self::sdl2::video::{Window, WindowContext};
 use std::ops::Deref;
-use self::sdl2::render::Canvas;
+use self::sdl2::render::{Canvas, TextureCreator};
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     canvas: RefCell<Canvas<Window>>,
+    texture_creator:TextureCreator<WindowContext>,
     width: usize,
     height: usize,
-    fb_update_rect:RefCell<Vec<Rect>>,
+    fb_update_rect: RefCell<Vec<Rect>>,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
@@ -32,6 +33,7 @@ impl SDL {
             .build()
             .map_err(|e| e.to_string())?;
         let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
+        let texture_creator = canvas.texture_creator();
         canvas.clear();
         canvas.present();
         let cursor_data = vec![0; 1];
@@ -39,10 +41,11 @@ impl SDL {
         cursor.set();
         Ok(SDL {
             event_pump: RefCell::new(context.event_pump()?),
-            canvas:RefCell::new(canvas),
+            canvas: RefCell::new(canvas),
+            texture_creator,
             width,
             height,
-            fb_update_rect:RefCell::new(vec![]),
+            fb_update_rect: RefCell::new(vec![]),
             key_pressed: RefCell::new([false; 256]),
             quit: Box::new(quit),
         })
@@ -125,14 +128,7 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
-        // let canvas = self.canvas.borrow();
         let mut event_pump = self.event_pump.borrow_mut();
-        // let screen = canvas.window().surface(event_pump.deref())?;
-        // let mut rects = self.fb_update_rect.borrow_mut();
-        // if !rects.is_empty() {
-        //     screen.update_window_rects(&rects)?;
-        //     rects.clear();
-        // }
         self.canvas.borrow_mut().present();
         for event in event_pump.poll_iter() {
             match event {
@@ -150,22 +146,14 @@ impl SDL {
         }
         Ok(())
     }
-
 }
 
 impl Display for SDL {
-    fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, fb_width,fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
-        let mut canvas = self.canvas.borrow_mut();
-        let texture_creator = canvas.texture_creator();
-        let texture = texture_creator.create_texture_from_surface(surface).map_err(|e|{e.to_string()})?;
-        let rect = Rect::new(x, y, w, h);
-        canvas.copy(&texture, rect, rect)?;
-        // let event_pump = self.event_pump.borrow();
-        // let canvas = self.canvas.borrow();
-        // let mut screen = canvas.window().surface(event_pump.deref())?;
-        // unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
-        // self.fb_update_rect.borrow_mut().push(rect);
+    fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let pitch = w << 2;
+        let surface = Surface::from_data(&mut data[x as usize * pitch as usize..y as usize * pitch as usize], w, h, pitch, PixelFormatEnum::ARGB8888)?;
+        let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
+        self.canvas.borrow_mut().copy(&texture, None, Some(Rect::new(x, y, w, h)))?;
         Ok(())
     }
 }
