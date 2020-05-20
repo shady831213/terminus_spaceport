@@ -150,10 +150,10 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let pitch = w << 2;
-        let surface = Surface::from_data(&mut data[x as usize * pitch as usize..y as usize * pitch as usize], w, h, pitch, PixelFormatEnum::ARGB8888)?;
+        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
         let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
-        self.canvas.borrow_mut().copy(&texture, None, Some(Rect::new(x, y, w, h)))?;
+        let rect = Rect::new(x, y, w, h);
+        self.canvas.borrow_mut().copy(&texture, rect, rect)?;
         Ok(())
     }
 }
