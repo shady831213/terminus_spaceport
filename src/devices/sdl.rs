@@ -15,8 +15,7 @@ use self::sdl2::render::{WindowCanvas, TextureCreator};
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
-    canvas: RefCell<WindowCanvas>,
-    texture_creator:TextureCreator<WindowContext>,
+    window: Window,
     width: usize,
     height: usize,
     fb_update_rect:RefCell<Vec<Rect>>,
@@ -32,17 +31,13 @@ impl SDL {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
-        let texture_creator = canvas.texture_creator();
-        canvas.clear();
-        canvas.present();
+        window.gl_swap_window();
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
         Ok(SDL {
             event_pump: RefCell::new(context.event_pump()?),
-            canvas:RefCell::new(canvas),
-            texture_creator,
+            window,
             width,
             height,
             fb_update_rect:RefCell::new(vec![]),
@@ -129,12 +124,12 @@ impl SDL {
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
         let mut event_pump = self.event_pump.borrow_mut();
-        // let screen = self.window.surface(event_pump.deref())?;
-        // let mut rects = self.fb_update_rect.borrow_mut();
-        // if !rects.is_empty() {
-        //     screen.update_window_rects(&rects)?;
-        //     rects.clear();
-        // }
+        let screen = self.window.surface(event_pump.deref())?;
+        let mut rects = self.fb_update_rect.borrow_mut();
+        if !rects.is_empty() {
+            screen.update_window_rects(&rects)?;
+            rects.clear();
+        }
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
@@ -156,17 +151,12 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        // let surface = Surface::from_data(data, fb_width,fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
-        // let event_pump = self.event_pump.borrow();
-        // let mut screen = self.window.surface(event_pump.deref())?;
-        // let rect = Rect::new(x, y, w, h);
-        // unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
-        // self.fb_update_rect.borrow_mut().push(rect);
-        let mut texture = self.texture_creator.create_texture_target(PixelFormatEnum::ARGB8888, w, h).map_err(|e|{e.to_string()})?;
-        let src = Rect::new(0, 0, w, h);
-        texture.update(src,&data[x as usize * fb_stride as usize.. y as usize * fb_stride as usize], fb_stride as usize).map_err(|e|{e.to_string()})?;
-        self.canvas.borrow_mut().copy(&texture, Some(src), Some(Rect::new(x, y, w,h)));
-        self.canvas.borrow_mut().present();
+        let surface = Surface::from_data(data, fb_width,fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
+        let event_pump = self.event_pump.borrow();
+        let mut screen = self.window.surface(event_pump.deref())?;
+        let rect = Rect::new(x, y, w, h);
+        unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
+        self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
 }
