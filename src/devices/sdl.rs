@@ -11,12 +11,14 @@ use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::Window;
 use std::ops::Deref;
+use std::os::raw::c_int;
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     window: Window,
     width: usize,
     height: usize,
+    fb_surface: RefCell<Option<*mut sdl2::sys::SDL_Surface>>,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
@@ -36,10 +38,11 @@ impl SDL {
         let even_pump = context.event_pump()?;
         window.surface(&even_pump)?.update_window()?;
         Ok(SDL {
-            event_pump:RefCell::new(even_pump),
+            event_pump: RefCell::new(even_pump),
             window,
             width,
             height,
+            fb_surface: RefCell::new(None),
             key_pressed: RefCell::new([false; 256]),
             quit: Box::new(quit),
         })
@@ -120,7 +123,7 @@ impl SDL {
     }
 
 
-    pub fn refresh<FB: FrameBuffer, K: KeyBoard, M:Mouse>(&self, fb: &FB, k: &K, m:&M) -> Result<(), String> {
+    pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
         for event in self.event_pump.borrow_mut().poll_iter() {
             match event {
@@ -138,11 +141,44 @@ impl SDL {
         }
         Ok(())
     }
+
+    fn update_fb_surface(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32) -> Result<Surface, String> {
+        let mut raw_surface = self.fb_surface.borrow_mut();
+        if let Some(raw) = *raw_surface {
+            let surface = unsafe{Surface::from_ll(raw)};
+            if surface.width() != fb_width || surface.height() != fb_height || surface.pitch() != fb_stride {
+                let masks = PixelFormatEnum::ARGB8888.into_masks()?;
+                unsafe {
+                    let raw = sdl2::sys::SDL_CreateRGBSurfaceFrom(
+                        data.as_mut_ptr() as *mut _, fb_width as c_int, fb_height as c_int,
+                        masks.bpp as c_int, fb_stride as c_int, masks.rmask, masks.gmask, masks.bmask, masks.amask);
+                    if raw.is_null() {
+                        return Err(sdl2::get_error())
+                    } else {
+                        *raw_surface = Some(raw)
+                    }
+                }
+            }
+        } else {
+            let masks = PixelFormatEnum::ARGB8888.into_masks()?;
+            unsafe {
+                let raw = sdl2::sys::SDL_CreateRGBSurfaceFrom(
+                    data.as_mut_ptr() as *mut _, fb_width as c_int, fb_height as c_int,
+                    masks.bpp as c_int, fb_stride as c_int, masks.rmask, masks.gmask, masks.bmask, masks.amask);
+                if raw.is_null() {
+                    return Err(sdl2::get_error())
+                } else {
+                    *raw_surface = Some(raw)
+                }
+            }
+        }
+        Ok(unsafe{Surface::from_ll(raw_surface.unwrap())})
+    }
 }
 
 impl Display for SDL {
-    fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
+    fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface = self.update_fb_surface(data, fb_width,fb_height,fb_stride)?;
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
