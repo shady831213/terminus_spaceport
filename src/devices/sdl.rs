@@ -8,10 +8,9 @@ use crate::devices::display::{FrameBuffer, Display, KeyBoard, Mouse, MOUSE_BTN_L
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::video::{Window, WindowContext};
+use self::sdl2::pixels::{PixelFormatEnum, Color};
+use self::sdl2::video::Window;
 use std::ops::Deref;
-use self::sdl2::render::{WindowCanvas, TextureCreator};
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
@@ -31,12 +30,15 @@ impl SDL {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        window.gl_swap_window();
+        let event_pump = context.event_pump()?;
+        let mut screen = window.surface(&event_pump)?;
+        screen.fill_rect(Rect::new(0,0,width as u32, height as u32), Color::BLACK)?;
+        screen.update_window()?;
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
         cursor.set();
         Ok(SDL {
-            event_pump: RefCell::new(context.event_pump()?),
+            event_pump: RefCell::new(event_pump),
             window,
             width,
             height,
