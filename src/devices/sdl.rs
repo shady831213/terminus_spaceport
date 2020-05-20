@@ -10,7 +10,6 @@ use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::{Window, WindowContext, DisplayMode};
-use std::ops::Deref;
 use self::sdl2::render::{Canvas, TextureCreator};
 
 pub struct SDL {
@@ -19,7 +18,6 @@ pub struct SDL {
     texture_creator:TextureCreator<WindowContext>,
     width: usize,
     height: usize,
-    fb_update_rect: RefCell<Vec<Rect>>,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
@@ -32,7 +30,7 @@ impl SDL {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        window.set_display_mode(DisplayMode::new(PixelFormatEnum::ARGB8888, 800,600,60))?;
+        window.set_display_mode(DisplayMode::new(PixelFormatEnum::RGB24, width as i32,height as i32,60))?;
         let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
         canvas.clear();
@@ -46,7 +44,6 @@ impl SDL {
             texture_creator,
             width,
             height,
-            fb_update_rect: RefCell::new(vec![]),
             key_pressed: RefCell::new([false; 256]),
             quit: Box::new(quit),
         })
