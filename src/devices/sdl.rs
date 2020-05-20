@@ -11,11 +11,21 @@ use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::{Window, WindowContext, DisplayMode};
 use self::sdl2::render::{Canvas, TextureCreator};
+use crate::devices::PixelFormat;
+
+impl PixelFormat {
+    fn sdl2format(&self) -> PixelFormatEnum {
+        match self {
+            PixelFormat::RGB565 => PixelFormatEnum::RGB565,
+            PixelFormat::RGB888 => PixelFormatEnum::ARGB8888,
+        }
+    }
+}
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     canvas: RefCell<Canvas<Window>>,
-    texture_creator:TextureCreator<WindowContext>,
+    texture_creator: TextureCreator<WindowContext>,
     width: usize,
     height: usize,
     key_pressed: RefCell<[bool; 256]>,
@@ -23,14 +33,14 @@ pub struct SDL {
 }
 
 impl SDL {
-    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, quit: QF) -> Result<SDL, String> {
+    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, format:PixelFormat, quit: QF) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
         let mut window = video_subsystem.window(title, width as u32, height as u32)
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        window.set_display_mode(DisplayMode::new(PixelFormatEnum::RGB565, width as i32,height as i32,60))?;
+        window.set_display_mode(DisplayMode::new(format.sdl2format(), width as i32, height as i32, 60))?;
         let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
         canvas.clear();
@@ -126,9 +136,9 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         let mut data = fb.data();
-        let surface = Surface::from_data(&mut data, fb.width(), fb.height(), fb.stride(), PixelFormatEnum::RGB565)?;
+        let surface = Surface::from_data(&mut data, fb.width(), fb.height(), fb.stride(), fb.pixel_format().sdl2format())?;
         let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
-        fb.refresh(|x, y, w, h|{
+        fb.refresh(|x, y, w, h| {
             let rect = Rect::new(x, y, w, h);
             self.canvas.borrow_mut().copy(&texture, rect, rect)
         })?;
