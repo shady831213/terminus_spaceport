@@ -8,7 +8,7 @@ use crate::devices::display::{FrameBuffer, Display, KeyBoard, Mouse, MOUSE_BTN_L
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::{PixelFormatEnum, Color};
+use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::Window;
 use std::ops::Deref;
 
@@ -142,12 +142,11 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        // let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
+        let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        screen.fill_rect(rect,Color::RGB(255, 0, 0))?;
-        // surface.blit(rect, &mut screen, rect)?;
+        surface.blit_scaled(rect, &mut screen, rect)?;
         screen.update_window()
     }
 }
