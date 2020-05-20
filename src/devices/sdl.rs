@@ -128,6 +128,7 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
+        self.canvas.borrow_mut().clear();
         let mut event_pump = self.event_pump.borrow_mut();
         // let screen = self.window.surface(event_pump.deref())?;
         // let mut rects = self.fb_update_rect.borrow_mut();
