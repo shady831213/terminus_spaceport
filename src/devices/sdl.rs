@@ -154,7 +154,7 @@ impl Display for SDL {
         surface.blit_scaled(rect, &mut screen, rect)?;
         eprintln!("blit {} nanos!", blit_start.elapsed().as_nanos());
         let update_start = std::time::Instant::now();
-        screen.update_window()?;
+        screen.update_window_rects(&[rect])?;
         eprintln!("update {} nanos!", update_start.elapsed().as_nanos());
         Ok(())
     }
