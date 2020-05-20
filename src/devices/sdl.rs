@@ -17,6 +17,7 @@ pub struct SDL {
     window: Window,
     width: usize,
     height: usize,
+    fb_update_rect:RefCell<Vec<Rect>>,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
@@ -40,6 +41,7 @@ impl SDL {
             window,
             width,
             height,
+            fb_update_rect:RefCell::new(vec![]),
             key_pressed: RefCell::new([false; 256]),
             quit: Box::new(quit),
         })
@@ -122,7 +124,14 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
-        for event in self.event_pump.borrow_mut().poll_iter() {
+        let mut event_pump = self.event_pump.borrow_mut();
+        let screen = self.window.surface(event_pump.deref())?;
+        let mut rects = self.fb_update_rect.borrow_mut();
+        if !rects.is_empty() {
+            screen.update_window_rects(&rects)?;
+            rects.clear();
+        }
+        for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
                     (*&self.quit)()
@@ -138,16 +147,17 @@ impl SDL {
         }
         Ok(())
     }
+
 }
 
 impl Display for SDL {
-    fn draw(&self, data: &mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, w, h, w << 2, PixelFormatEnum::ARGB8888)?;
+    fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
-        let dest_rect = Rect::new(x, y, w, h);
-        surface.blit(Rect::new(0, 0, w, h), &mut screen, dest_rect)?;
-        screen.update_window_rects(&[dest_rect])?;
+        let rect = Rect::new(x, y, w, h);
+        surface.blit(rect, &mut screen, rect)?;
+        self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
 }
