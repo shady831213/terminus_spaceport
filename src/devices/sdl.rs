@@ -30,7 +30,7 @@ impl SDL {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        window.set_display_mode(DisplayMode::new(PixelFormatEnum::RGB24, width as i32,height as i32,60))?;
+        window.set_display_mode(DisplayMode::new(PixelFormatEnum::RGB565, width as i32,height as i32,60))?;
         let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
         canvas.clear();
@@ -148,7 +148,7 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
+        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::RGB565)?;
         let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
         let rect = Rect::new(x, y, w, h);
         self.canvas.borrow_mut().copy(&texture, rect, rect)?;
