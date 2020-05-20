@@ -8,10 +8,10 @@ use crate::devices::display::{FrameBuffer, Display, KeyBoard, Mouse, MOUSE_BTN_L
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::{PixelFormatEnum, Color};
+use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::Window;
 use std::ops::Deref;
-use self::sdl2::render::{Canvas, WindowCanvas};
+use self::sdl2::render::Canvas;
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
@@ -125,14 +125,14 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
+        let canvas = self.canvas.borrow();
         let mut event_pump = self.event_pump.borrow_mut();
-        // let screen = self.window.surface(event_pump.deref())?;
-        // let mut rects = self.fb_update_rect.borrow_mut();
-        // if !rects.is_empty() {
-        //     screen.update_window_rects(&rects)?;
-        //     rects.clear();
-        // }
-        self.canvas.borrow_mut().present();
+        let screen = canvas.window().surface(event_pump.deref())?;
+        let mut rects = self.fb_update_rect.borrow_mut();
+        if !rects.is_empty() {
+            screen.update_window_rects(&rects)?;
+            rects.clear();
+        }
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
@@ -160,7 +160,7 @@ impl Display for SDL {
         let mut screen = canvas.window().surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
         unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
-        // self.fb_update_rect.borrow_mut().push(rect);
+        self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
 }
