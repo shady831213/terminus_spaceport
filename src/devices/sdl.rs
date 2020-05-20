@@ -11,21 +11,20 @@ use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
 use self::sdl2::video::Window;
 use std::ops::Deref;
-use std::os::raw::c_int;
+pub use sdl2::*;
 
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     window: Window,
     width: usize,
     height: usize,
-    fb_update_rect: RefCell<Vec<Rect>>,
-    fb_surface_raw: *mut sdl2::sys::SDL_Surface,
+    fb_update_rect:RefCell<Vec<Rect>>,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
 
 impl SDL {
-    pub fn new<QF: Fn() + 'static>(title: &str, fb_buffer: &mut [u8], fb_width: u32, fb_height: u32, width: usize, height: usize, quit: QF) -> Result<SDL, String> {
+    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, quit: QF) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
         let window = video_subsystem.window(title, width as u32, height as u32)
@@ -38,24 +37,12 @@ impl SDL {
         cursor.set();
         let even_pump = context.event_pump()?;
         window.surface(&even_pump)?.update_window()?;
-        let masks = PixelFormatEnum::ARGB8888.into_masks()?;
-        let raw = unsafe {
-            let raw = sdl2::sys::SDL_CreateRGBSurfaceFrom(
-                fb_buffer.as_mut_ptr() as *mut _, fb_width as c_int, fb_height as c_int,
-                masks.bpp as c_int, (fb_width << 2) as c_int, masks.rmask, masks.gmask, masks.bmask, masks.amask);
-
-            if raw.is_null() {
-                return Err(sdl2::get_error());
-            }
-            raw
-        };
         Ok(SDL {
             event_pump: RefCell::new(even_pump),
             window,
             width,
             height,
-            fb_update_rect: RefCell::new(vec![]),
-            fb_surface_raw: raw,
+            fb_update_rect:RefCell::new(vec![]),
             key_pressed: RefCell::new([false; 256]),
             quit: Box::new(quit),
         })
@@ -161,16 +148,16 @@ impl SDL {
         }
         Ok(())
     }
+
 }
 
 impl Display for SDL {
     fn draw(&self, data: &mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        // let surface = Surface::from_data(data, w, h, w << 2, PixelFormatEnum::ARGB8888)?;
-        let surface = unsafe{Surface::from_ll(self.fb_surface_raw)};
+        let surface = Surface::from_data(data, w,h, w << 2, PixelFormatEnum::ARGB8888)?;
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        unsafe { surface.lower_blit(rect, &mut screen, rect) }?;
+        unsafe {surface.lower_blit(Rect::new(0, 0, w, h), &mut screen, rect)}?;
         self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
