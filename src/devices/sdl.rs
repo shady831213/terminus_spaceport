@@ -37,6 +37,7 @@ impl SDL {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
         let mut window = video_subsystem.window(title, width as u32, height as u32)
+            .resizable()
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
