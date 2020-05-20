@@ -151,12 +151,12 @@ impl SDL {
 }
 
 impl Display for SDL {
-    fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
+    fn draw(&self, data: &mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface = Surface::from_data(data, w,h, w << 2, PixelFormatEnum::ARGB8888)?;
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        surface.blit(rect, &mut screen, rect)?;
+        unsafe {surface.lower_blit(Rect::new(0, 0, w, h), &mut screen, rect)}?;
         self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }

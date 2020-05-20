@@ -1,5 +1,5 @@
 pub trait Display {
-    fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String>;
+    fn draw(&self, data:&mut [u8], x: i32, y: i32, w: u32, h: u32) -> Result<(), String>;
 }
 
 pub trait FrameBuffer {
