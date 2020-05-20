@@ -4,7 +4,7 @@ use self::sdl2::EventPump;
 use std::cell::RefCell;
 use self::sdl2::rect::Rect;
 use self::sdl2::event::Event;
-use crate::devices::display::{FrameBuffer, Display, KeyBoard, Mouse, MOUSE_BTN_LEFT, MOUSE_BTN_RIGHT, MOUSE_BTN_MIDDLE};
+use crate::devices::display::{FrameBuffer, KeyBoard, Mouse, MOUSE_BTN_LEFT, MOUSE_BTN_RIGHT, MOUSE_BTN_MIDDLE};
 use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
@@ -125,7 +125,13 @@ impl SDL {
 
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
-        fb.refresh(self)?;
+        let mut data = fb.data();
+        let surface = Surface::from_data(&mut data, fb.width(), fb.height(), fb.stride(), PixelFormatEnum::RGB565)?;
+        let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
+        fb.refresh(|x, y, w, h|{
+            let rect = Rect::new(x, y, w, h);
+            self.canvas.borrow_mut().copy(&texture, rect, rect)
+        })?;
         let mut event_pump = self.event_pump.borrow_mut();
         self.canvas.borrow_mut().present();
         for event in event_pump.poll_iter() {
@@ -146,12 +152,11 @@ impl SDL {
     }
 }
 
-impl Display for SDL {
-    fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-        let surface = Surface::from_data(data, fb_width, fb_height, fb_stride, PixelFormatEnum::RGB565)?;
-        let texture = self.texture_creator.create_texture_from_surface(surface).map_err(|e| { e.to_string() })?;
-        let rect = Rect::new(x, y, w, h);
-        self.canvas.borrow_mut().copy(&texture, rect, rect)?;
-        Ok(())
-    }
-}
+// impl Display for SDL {
+//     fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+//
+//         let rect = Rect::new(x, y, w, h);
+//         self.canvas.borrow_mut().copy(&texture, rect, rect)?;
+//         Ok(())
+//     }
+// }
