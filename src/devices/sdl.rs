@@ -31,7 +31,7 @@ impl SDL {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
         canvas.clear();
         canvas.present();
         let cursor_data = vec![0; 1];
@@ -125,14 +125,15 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
-        let canvas = self.canvas.borrow();
+        // let canvas = self.canvas.borrow();
         let mut event_pump = self.event_pump.borrow_mut();
-        let screen = canvas.window().surface(event_pump.deref())?;
-        let mut rects = self.fb_update_rect.borrow_mut();
-        if !rects.is_empty() {
-            screen.update_window_rects(&rects)?;
-            rects.clear();
-        }
+        // let screen = canvas.window().surface(event_pump.deref())?;
+        // let mut rects = self.fb_update_rect.borrow_mut();
+        // if !rects.is_empty() {
+        //     screen.update_window_rects(&rects)?;
+        //     rects.clear();
+        // }
+        self.canvas.borrow_mut().present();
         for event in event_pump.poll_iter() {
             match event {
                 Event::Quit { .. } => {
@@ -155,12 +156,16 @@ impl SDL {
 impl Display for SDL {
     fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
         let surface = Surface::from_data(data, fb_width,fb_height, fb_stride, PixelFormatEnum::ARGB8888)?;
-        let event_pump = self.event_pump.borrow();
         let canvas = self.canvas.borrow();
-        let mut screen = canvas.window().surface(event_pump.deref())?;
+        let texture_creator = canvas.texture_creator();
+        let texture = texture_creator.create_texture_from_surface(surface).map_err(|e|{e.to_string()})?;
         let rect = Rect::new(x, y, w, h);
-        unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
-        self.fb_update_rect.borrow_mut().push(rect);
+        self.canvas.borrow_mut().copy(&texture, rect, rect)?;
+        // let event_pump = self.event_pump.borrow();
+        // let canvas = self.canvas.borrow();
+        // let mut screen = canvas.window().surface(event_pump.deref())?;
+        // unsafe {surface.lower_blit(rect, &mut screen, rect)}?;
+        // self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
 }
