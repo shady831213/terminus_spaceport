@@ -142,11 +142,20 @@ impl SDL {
 
 impl Display for SDL {
     fn draw(&self, data:&mut [u8], fb_width:u32, fb_height:u32, fb_stride:u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
+        let surface_start = std::time::Instant::now();
         let surface = Surface::from_data(data, fb_width, fb_height,fb_stride, PixelFormatEnum::ARGB8888)?;
+        eprintln!("create surface {} nanos!", surface_start.elapsed().as_nanos());
+        let screen_start = std::time::Instant::now();
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
+        eprintln!("create screen {} nanos!", screen_start.elapsed().as_nanos());
+        let blit_start = std::time::Instant::now();
         let rect = Rect::new(x, y, w, h);
         surface.blit_scaled(rect, &mut screen, rect)?;
-        screen.update_window()
+        eprintln!("blit {} nanos!", blit_start.elapsed().as_nanos());
+        let update_start = std::time::Instant::now();
+        screen.update_window()?;
+        eprintln!("update {} nanos!", update_start.elapsed().as_nanos());
+        Ok(())
     }
 }
