@@ -160,12 +160,3 @@ impl SDL {
         Ok(())
     }
 }
-
-// impl Display for SDL {
-//     fn draw(&self, data: &mut [u8], fb_width: u32, fb_height: u32, fb_stride: u32, x: i32, y: i32, w: u32, h: u32) -> Result<(), String> {
-//
-//         let rect = Rect::new(x, y, w, h);
-//         self.canvas.borrow_mut().copy(&texture, rect, rect)?;
-//         Ok(())
-//     }
-// }
