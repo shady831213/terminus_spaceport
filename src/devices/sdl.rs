@@ -128,7 +128,6 @@ impl SDL {
 
     pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
         fb.refresh(self)?;
-        self.canvas.borrow_mut().clear();
         let mut event_pump = self.event_pump.borrow_mut();
         // let screen = self.window.surface(event_pump.deref())?;
         // let mut rects = self.fb_update_rect.borrow_mut();
@@ -167,6 +166,6 @@ impl Display for SDL {
         let mut texture = self.texture_creator.create_texture_static(PixelFormatEnum::ARGB8888, w, h).map_err(|e|{e.to_string()})?;
         let src = Rect::new(0, 0, w, h);
         texture.update(src,&data[x as usize * fb_stride as usize.. y as usize * fb_stride as usize], fb_stride as usize).map_err(|e|{e.to_string()})?;
-        self.canvas.borrow_mut().copy(&texture, None, Some(Rect::new(x, y, w,h)))
+        self.canvas.borrow_mut().copy(&texture, Some(src), Some(Rect::new(x, y, w,h)))
     }
 }
