@@ -5,7 +5,7 @@ use std::cell::RefMut;
 // }
 
 pub trait FrameBuffer {
-    fn refresh<DRAW: FnMut(i32, i32, u32, u32)->Result<(), String>>(&self, d: DRAW) -> Result<(), String>;
+    fn refresh<DRAW: Fn(i32, i32, u32, u32)->Result<(), String>>(&self, d: DRAW) -> Result<(), String>;
     fn data(&self)->RefMut<'_, Vec<u8>>;
     fn width(&self)->u32;
     fn height(&self)->u32;
