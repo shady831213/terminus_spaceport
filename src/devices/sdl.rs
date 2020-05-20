@@ -146,8 +146,8 @@ impl Display for SDL {
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        screen.fill_rect(rect,Color::RGB(255, 0, 0));
-        surface.blit(rect, &mut screen, rect)?;
+        screen.fill_rect(rect,Color::RGB(255, 0, 0))?;
+        // surface.blit(rect, &mut screen, rect)?;
         screen.update_window()
     }
 }
