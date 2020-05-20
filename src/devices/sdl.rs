@@ -165,7 +165,7 @@ impl Display for SDL {
         // self.fb_update_rect.borrow_mut().push(rect);
         let mut texture = self.texture_creator.create_texture_static(PixelFormatEnum::ARGB8888, fb_width, fb_width).map_err(|e|{e.to_string()})?;
         let src = Rect::new(x, y, w, h);
-        texture.update(src,&data[x as usize * fb_stride as usize.. y as usize * fb_stride as usize], 0).map_err(|e|{e.to_string()})?;
+        texture.update(src,&data[x as usize * fb_stride as usize.. y as usize * fb_stride as usize], fb_stride as usize).map_err(|e|{e.to_string()})?;
         self.canvas.borrow_mut().copy(&texture, Some(src), Some(Rect::new(x, y, w,h)))
     }
 }
