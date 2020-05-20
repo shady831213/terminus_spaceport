@@ -157,7 +157,7 @@ impl Display for SDL {
         let event_pump = self.event_pump.borrow();
         let mut screen = self.window.surface(event_pump.deref())?;
         let rect = Rect::new(x, y, w, h);
-        unsafe {surface.lower_blit(Rect::new(0, 0, w, h), &mut screen, rect)}?;
+        surface.blit(Rect::new(0, 0, w, h), &mut screen, rect)?;
         self.fb_update_rect.borrow_mut().push(rect);
         Ok(())
     }
