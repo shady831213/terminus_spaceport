@@ -9,7 +9,7 @@ use self::sdl2::keyboard::Keycode;
 use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
 use self::sdl2::pixels::PixelFormatEnum;
-use self::sdl2::video::{Window, WindowContext};
+use self::sdl2::video::{Window, WindowContext, DisplayMode};
 use std::ops::Deref;
 use self::sdl2::render::{Canvas, TextureCreator};
 
@@ -28,10 +28,11 @@ impl SDL {
     pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, quit: QF) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
-        let window = video_subsystem.window(title, width as u32, height as u32)
+        let mut window = video_subsystem.window(title, width as u32, height as u32)
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
+        window.set_display_mode(DisplayMode::new(PixelFormatEnum::ARGB8888, 800,600,60))?;
         let mut canvas = window.into_canvas().accelerated().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
         canvas.clear();
