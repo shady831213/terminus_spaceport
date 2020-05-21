@@ -74,10 +74,8 @@ impl SDL {
 
     fn get_key(&self, code: &Scancode) -> usize {
         let scan_node = *code as i32;
-        if scan_node < 9 {
-            0
-        } else if scan_node < 255 + 8 {
-            (scan_node - 8) as usize
+        if scan_node < 256 {
+            scan_node as usize
         } else {
             0
         }
