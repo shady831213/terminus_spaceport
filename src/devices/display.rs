@@ -1,5 +1,6 @@
 use std::cell::RefMut;
 
+#[derive(Copy, Clone)]
 pub enum PixelFormat {
     RGB565,
     RGB888,
