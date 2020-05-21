@@ -57,20 +57,29 @@ impl SDL {
     }
 
     fn key_up<I: KeyBoard>(&self, input: &I, code: &Keycode) {
-        let idx = *code as i32 as usize;
+        let idx = self.get_key(code);
         let mut key_pressed = self.key_pressed.borrow_mut();
-        if idx < key_pressed.len() && key_pressed[idx] {
+        if key_pressed[idx] {
             key_pressed[idx] = false;
             input.send_key_event(false, idx as u16)
         }
     }
 
     fn key_down<I: KeyBoard>(&self, input: &I, code: &Keycode) {
-        let idx = *code as i32 as usize;
+        let idx = self.get_key(code);
         let mut key_pressed = self.key_pressed.borrow_mut();
-        if idx < key_pressed.len() {
-            key_pressed[idx] = true;
-            input.send_key_event(true, idx as u16)
+        key_pressed[idx] = true;
+        input.send_key_event(true, idx as u16)
+    }
+
+    fn get_key(&self, code: &Keycode) -> usize {
+        let keycode = *code as i32;
+        if keycode < 9 {
+            0
+        } else if keycode < 255 + 8 {
+            (keycode - 8) as usize
+        } else {
+            0
         }
     }
 
