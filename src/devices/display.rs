@@ -29,7 +29,7 @@ pub const MOUSE_BTN_MIDDLE: u32 = 0x3;
 
 
 pub trait KeyBoard {
-    fn send_key_event(&self, key_down: bool, val: u32);
+    fn send_key_event(&self, key_down: bool, val: u16);
 }
 
 pub trait Mouse {

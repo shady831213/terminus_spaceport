@@ -59,16 +59,19 @@ impl SDL {
     fn key_up<I: KeyBoard>(&self, input: &I, code: &Keycode) {
         let idx = *code as i32 as usize;
         let mut key_pressed = self.key_pressed.borrow_mut();
-        if (*key_pressed)[idx] {
-            (*key_pressed)[idx] = false;
-            input.send_key_event(false, idx as u32)
+        if idx < key_pressed.len() && key_pressed[idx] {
+            key_pressed[idx] = false;
+            input.send_key_event(false, idx as u16)
         }
     }
 
     fn key_down<I: KeyBoard>(&self, input: &I, code: &Keycode) {
         let idx = *code as i32 as usize;
-        (*self.key_pressed.borrow_mut())[idx] = true;
-        input.send_key_event(true, idx as u32)
+        let mut key_pressed = self.key_pressed.borrow_mut();
+        if idx < key_pressed.len() {
+            key_pressed[idx] = true;
+            input.send_key_event(true, idx as u16)
+        }
     }
 
     fn mouse_motion<I: Mouse>(&self, input: &I, state: &MouseState, x: i32, y: i32, xrel: i32, yrel: i32) {
