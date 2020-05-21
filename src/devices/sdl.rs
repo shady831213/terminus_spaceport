@@ -272,24 +272,24 @@ impl KeyCode {
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     window: Window,
-    width: usize,
-    height: usize,
+    width: u32,
+    height: u32,
     key_pressed: RefCell<[bool; 256]>,
     quit: Box<dyn Fn() + 'static>,
 }
 
 impl SDL {
-    pub fn new<QF: Fn() + 'static>(title: &str, width: usize, height: usize, format: PixelFormat, quit: QF) -> Result<SDL, String> {
+    pub fn new<QF: Fn() + 'static>(title: &str, width: u32, height: u32, format: PixelFormat, quit: QF) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
-        let mut window = video_subsystem.window(title, width as u32, height as u32)
+        let mut window = video_subsystem.window(title, width, height)
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
         window.set_display_mode(DisplayMode::new(format.sdl2format(), width as i32, height as i32, 60))?;
         let event_pump = context.event_pump()?;
         let mut screen = window.surface(&event_pump)?;
-        screen.fill_rect(Rect::new(0, 0, width as u32, height as u32), Color::BLACK)?;
+        screen.fill_rect(Rect::new(0, 0, width, height), Color::BLACK)?;
         screen.update_window()?;
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
