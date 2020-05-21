@@ -194,11 +194,11 @@ pub trait DeviceAccess {
         *self.device().status.borrow_mut() = *val;
     }
 
-    fn config(&self, _: u64) -> u32 { 0 }
+    fn config(&self, _: u64, _: &mut [u8]) {}
 
-    fn set_config(&self, _: u64, _: &u32) {}
+    fn set_config(&self, _: u64, _: &[u8]) {}
 
-    fn config_mask(&self, offset:&u64) -> u64 {
+    fn config_mask(&self, offset: &u64) -> u64 {
         match (*offset).trailing_zeros() {
             0 => 0xff,
             1 => 0xffff,
@@ -217,22 +217,25 @@ pub trait DeviceAccess {
 
 pub trait MMIODevice: DeviceAccess {
     fn read_bytes(&self, offset: &u64, data: &mut [u8]) {
+        if *offset >= MMIO_CONFIG {
+            return self.config(*offset - MMIO_CONFIG, data);
+        }
         let len = data.len();
-        let res = MMIODevice::read(self, offset).to_le_bytes();
+        let res = self.read_common(offset).to_le_bytes();
         data.copy_from_slice(&res[..len])
     }
 
     fn write_bytes(&self, offset: &u64, data: &[u8]) {
+        if *offset >= MMIO_CONFIG {
+            return self.set_config(*offset - MMIO_CONFIG, data);
+        }
         let mut bytes = [0; 4];
         let len = data.len();
         bytes[..len].copy_from_slice(data);
-        self.write(offset, &u32::from_le_bytes(bytes))
+        self.write_common(offset, &u32::from_le_bytes(bytes))
     }
 
-    fn read(&self, offset: &u64) -> u32 {
-        if *offset >= MMIO_CONFIG {
-            return self.config(*offset - MMIO_CONFIG);
-        }
+    fn read_common(&self, offset: &u64) -> u32 {
         if (*offset).trailing_zeros() > 1 {
             match *offset {
                 MMIO_MAGIC_VALUE => self.magic(),
@@ -260,10 +263,7 @@ pub trait MMIODevice: DeviceAccess {
         }
     }
 
-    fn write(&self, offset: &u64, val: &u32) {
-        if *offset >= MMIO_CONFIG {
-            return self.set_config(*offset - MMIO_CONFIG, val);
-        }
+    fn write_common(&self, offset: &u64, val: &u32) {
         if (*offset).trailing_zeros() > 1 {
             match *offset {
                 MMIO_DEVICE_FEATURES_SEL => self.set_device_features_sel(val),
@@ -282,6 +282,22 @@ pub trait MMIODevice: DeviceAccess {
                 _ => {}
             }
         }
+    }
+
+    fn read(&self, offset: &u64) -> u32 {
+        if *offset >= MMIO_CONFIG {
+            let mut bytes = [0; 4];
+            self.config(*offset - MMIO_CONFIG, &mut bytes);
+            return u32::from_le_bytes(bytes)
+        }
+        self.read_common(offset)
+    }
+
+    fn write(&self, offset: &u64, val: &u32) {
+        if *offset >= MMIO_CONFIG {
+            return self.set_config(*offset - MMIO_CONFIG, &((*val).to_le_bytes()));
+        }
+        self.write_common(offset, val)
     }
 }
 
