@@ -283,6 +283,7 @@ impl SDL {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
         let mut window = video_subsystem.window(title, width, height)
+            .resizable()
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
@@ -392,7 +393,7 @@ impl SDL {
         fb.refresh(|x, y, w, h| {
             let rect = Rect::new(x, y, w, h);
             let mut s = self.window.surface(&event_pump)?;
-            unsafe { surface.lower_blit(rect, &mut s, rect) }?;
+            unsafe { surface.lower_blit_scaled(rect, &mut s, rect) }?;
             Ok(())
         })?;
         screen.update_window()?;
