@@ -326,9 +326,9 @@ impl SDL {
 
     fn mouse_motion<I: Mouse>(&self, input: &I, state: &MouseState, x: i32, y: i32, xrel: i32, yrel: i32) {
         if input.mouse_absolute() {
-            input.send_mouse_event(self.mouse_x_abs(x), self.mouse_y_abs(y), 0, state.to_sdl_state())
+            input.send_mouse_event(self.mouse_x_abs(x), self.mouse_y_abs(y), 0, self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()))
         } else {
-            input.send_mouse_event(xrel, yrel, 0, state.to_sdl_state())
+            input.send_mouse_event(xrel, yrel, 0, self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()))
         }
     }
 
@@ -368,6 +368,20 @@ impl SDL {
             MouseButton::Middle => MOUSE_BTN_MIDDLE,
             _ => 0,
         }
+    }
+
+    fn sdle_mouse_state_to_mouse_btn(&self, sdl_btn: u32) -> u32 {
+        let mut buttons: u32 = 0;
+        if sdl_btn & 0x1 != 0 {
+            buttons |= MOUSE_BTN_LEFT
+        }
+        if sdl_btn & 0x2 != 0 {
+            buttons |= MOUSE_BTN_MIDDLE
+        }
+        if sdl_btn & 0x4 != 0 {
+            buttons |= MOUSE_BTN_RIGHT
+        }
+        buttons
     }
 
 
