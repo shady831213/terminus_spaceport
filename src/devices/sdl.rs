@@ -10,7 +10,7 @@ use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
 use self::sdl2::surface::Surface;
 use self::sdl2::pixels::{PixelFormatEnum, Color};
 use self::sdl2::video::{Window, DisplayMode};
-use crate::devices::{PixelFormat, KeyCode};
+use crate::devices::{PixelFormat, KeyCode, MAX_ABS_SCALE};
 
 impl PixelFormat {
     fn sdl2format(&self) -> PixelFormatEnum {
@@ -376,11 +376,11 @@ impl SDL {
 
 
     fn mouse_x_abs(&self, x: i32) -> i32 {
-        x * 32768 / self.width as i32
+        x * MAX_ABS_SCALE / self.width as i32
     }
 
     fn mouse_y_abs(&self, y: i32) -> i32 {
-        y * 32768 / self.height as i32
+        y * MAX_ABS_SCALE / self.height as i32
     }
 
 

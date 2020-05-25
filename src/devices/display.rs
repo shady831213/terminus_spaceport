@@ -1,5 +1,7 @@
 use std::cell::RefMut;
 
+pub const MAX_ABS_SCALE:i32 = 32768;
+
 #[derive(Copy, Clone)]
 pub enum PixelFormat {
     RGB565,
