@@ -349,18 +349,14 @@ impl SDL {
         }
     }
 
-    fn mouse_wheel<I: Mouse>(&self, input: &I, x: i32, y: i32, dir: &MouseWheelDirection) {
-        if input.mouse_absolute() {
-            input.send_mouse_event(self.mouse_x_abs(x), self.mouse_y_abs(y), self.mouse_z(dir), 0)
-        } else {
-            input.send_mouse_event(0, 0, self.mouse_z(dir), 0)
-        }
+    fn mouse_wheel<I: Mouse>(&self, input: &I, x: i32, _: i32, dir: &MouseWheelDirection) {
+        input.send_mouse_event(0, 0, self.mouse_z(dir, x), 0)
     }
 
-    fn mouse_z(&self, dir: &MouseWheelDirection) -> i32 {
+    fn mouse_z(&self, dir: &MouseWheelDirection, z: i32) -> i32 {
         match dir {
-            MouseWheelDirection::Normal => 1,
-            MouseWheelDirection::Flipped => -1,
+            MouseWheelDirection::Normal => z,
+            MouseWheelDirection::Flipped => -z,
             _ => 0
         }
     }
