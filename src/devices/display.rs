@@ -28,7 +28,7 @@ pub trait FrameBuffer {
 
 pub const MOUSE_BTN_LEFT: u32 = 0x1;
 pub const MOUSE_BTN_RIGHT: u32 = 0x2;
-pub const MOUSE_BTN_MIDDLE: u32 = 0x3;
+pub const MOUSE_BTN_MIDDLE: u32 = 0x4;
 
 
 pub trait KeyBoard {
