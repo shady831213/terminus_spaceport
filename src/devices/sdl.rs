@@ -349,8 +349,8 @@ impl SDL {
         }
     }
 
-    fn mouse_wheel<I: Mouse>(&self, input: &I, x: i32, _: i32, dir: &MouseWheelDirection) {
-        input.send_mouse_event(0, 0, self.mouse_z(dir, x), 0)
+    fn mouse_wheel<I: Mouse>(&self, input: &I, _: i32, y: i32, dir: &MouseWheelDirection) {
+        input.send_mouse_event(0, 0, self.mouse_z(dir, y), 0)
     }
 
     fn mouse_z(&self, dir: &MouseWheelDirection, z: i32) -> i32 {
