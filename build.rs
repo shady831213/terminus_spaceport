@@ -14,7 +14,9 @@ fn get_files(dir:&str)->Vec<String> {
 
 fn main() {
     //build static lib
-    let csrc =  get_files("csrc");
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("No &CARGO_MANIFEST_DIR!");
+    let csrc_dir = Path::new(&manifest_dir).join(Path::new("csrc")).to_str().expect("csrc not exists!").to_string();
+    let csrc =  get_files(&csrc_dir);
     let cfile_pat = Regex::new(r".*\.c$").unwrap();
     let cfiles = csrc.iter()
         .filter(|c| { cfile_pat.is_match(c) })
@@ -25,28 +27,28 @@ fn main() {
         .filter(|h| { hfile_pat.is_match(h) })
         .collect::<Vec<_>>();
 
-    let vsrc =  get_files("vsrc");
+    let vsrc_dir = Path::new(&manifest_dir).join(Path::new("vsrc")).to_str().expect("vsrc not exists!").to_string();
+    let vsrc =  get_files(&vsrc_dir);
     let vhfile_pat = Regex::new(r".*\.vh$").unwrap();
     let vhfiles = vsrc.iter()
         .filter(|vh| { vhfile_pat.is_match(vh) })
         .collect::<Vec<_>>();
 
-    println!("cargo:rerun-if-changed=csrc");
-    println!("cargo:rerun-if-changed=vsrc");
+    println!("cargo:rerun-if-changed={}", &csrc_dir);
+    println!("cargo:rerun-if-changed={}", &vsrc_dir);
     for file in [&cfiles[..], &hfiles[..], &vhfiles[..]].concat() {
         println!("cargo:rerun-if-changed={}", file);
     }
 
     cc::Build::new()
         .files(&cfiles)
-        .include("csrc")
+        .include(&csrc_dir)
         .shared_flag(true)
         .static_flag(true)
         .compile("ts.c");
 
     //build dyn lib
     let profile = env::var("PROFILE").expect("Can not get $PROFILE");
-    println!("output dir = {}", env::var("OUT_DIR").unwrap());
     let target_dir = env::var("CARGO_TARGET_DIR")
         .unwrap_or(env::var("CARGO_BUILD_TARGET_DIR")
             .unwrap_or(String::from("target")));
