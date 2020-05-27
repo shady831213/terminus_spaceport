@@ -15,7 +15,7 @@ fn get_files(dir:&str)->Vec<String> {
 fn main() {
     //build static lib
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("No &CARGO_MANIFEST_DIR!");
-    let csrc_dir = Path::new(&manifest_dir).join(Path::new("csrc")).to_str().expect("csrc not exists!").to_string();
+    let csrc_dir = Path::new(&manifest_dir).join("csrc").to_str().expect("csrc not exists!").to_string();
     let csrc =  get_files(&csrc_dir);
     let cfile_pat = Regex::new(r".*\.c$").unwrap();
     let cfiles = csrc.iter()
@@ -27,7 +27,7 @@ fn main() {
         .filter(|h| { hfile_pat.is_match(h) })
         .collect::<Vec<_>>();
 
-    let vsrc_dir = Path::new(&manifest_dir).join(Path::new("vsrc")).to_str().expect("vsrc not exists!").to_string();
+    let vsrc_dir = Path::new(&manifest_dir).join("vsrc").to_str().expect("vsrc not exists!").to_string();
     let vsrc =  get_files(&vsrc_dir);
     let vhfile_pat = Regex::new(r".*\.vh$").unwrap();
     let vhfiles = vsrc.iter()
@@ -63,11 +63,13 @@ fn main() {
         .cargo_metadata(false)
         .out_dir(&final_dir)
         .compile("ts.c.so");
+    println!("rename {} to {}", &final_dir.join("libts.c.so.a").to_str().unwrap(), final_dir.join("libts.c.so").to_str().unwrap());
     fs::rename(&final_dir.join("libts.c.so.a"), final_dir.join("libts.c.so")).expect("Can not rename libts.c.so.a!");
 
     //copy header file
     for file in [&hfiles[..], &vhfiles[..]].concat() {
         let basename = Path::new(file).file_name().unwrap();
+        println!("copy {} to {}", file, final_dir.join(basename).to_str().unwrap());
         fs::copy(file, &final_dir.join(basename)).expect(&format!("Can not copy {}!",file));
     }
     println!("cargo:rerun-if-changed=build.rs");
