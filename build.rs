@@ -46,6 +46,7 @@ fn main() {
 
     //build dyn lib
     let profile = env::var("PROFILE").expect("Can not get $PROFILE");
+    println!("output dir = {}", env::var("OUT_DIR").unwrap());
     let target_dir = env::var("CARGO_TARGET_DIR")
         .unwrap_or(env::var("CARGO_BUILD_TARGET_DIR")
             .unwrap_or(String::from("target")));
