@@ -1,9 +1,17 @@
 extern crate regex;
-
+#[macro_use]
+extern crate lazy_static;
+extern crate serde_json;
+extern crate serde;
 use regex::Regex;
 use std::fs;
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::collections::BTreeMap;
+use std::sync::Mutex;
+use serde::Deserialize;
+
+
 
 fn get_files(dir:&str)->Vec<String> {
     fs::read_dir(dir).unwrap()
@@ -12,9 +20,37 @@ fn get_files(dir:&str)->Vec<String> {
         .collect::<Vec<_>>()
 }
 
+lazy_static! {
+    static ref WORKSPACES: Mutex<BTreeMap<String, &'static Path>> = Mutex::new(BTreeMap::new());
+}
+
+fn get_cargo_workspace(manifest_dir: &str) -> &Path {
+    let mut workspaces = WORKSPACES.lock().unwrap();
+    if let Some(rv) = workspaces.get(manifest_dir) {
+        rv
+    } else {
+        #[derive(Deserialize)]
+        struct Manifest {
+            workspace_root: String,
+        }
+        let output = std::process::Command::new(env!("CARGO"))
+            .arg("metadata")
+            .arg("--format-version=1")
+            .current_dir(manifest_dir)
+            .output()
+            .unwrap();
+        let manifest: Manifest = serde_json::from_slice(&output.stdout).unwrap();
+        let path = Box::leak(Box::new(PathBuf::from(manifest.workspace_root)));
+        workspaces.insert(manifest_dir.to_string(), path.as_path());
+        workspaces.get(manifest_dir).unwrap()
+    }
+}
+
+
 fn main() {
     //build static lib
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("No &CARGO_MANIFEST_DIR!");
+    let workspace_dir = get_cargo_workspace(&manifest_dir);
     let csrc_dir = Path::new(&manifest_dir).join("csrc").to_str().expect("csrc not exists!").to_string();
     let csrc =  get_files(&csrc_dir);
     let cfile_pat = Regex::new(r".*\.c$").unwrap();
@@ -52,8 +88,8 @@ fn main() {
     let target_dir = env::var("CARGO_TARGET_DIR")
         .unwrap_or(env::var("CARGO_BUILD_TARGET_DIR")
             .unwrap_or(String::from("target")));
-    let final_dir = Path::new(&target_dir)
-        .join(Path::new(&profile));
+    let final_dir = workspace_dir.join(&target_dir)
+        .join(&profile);
 
     cc::Build::new()
         .files(&cfiles)
