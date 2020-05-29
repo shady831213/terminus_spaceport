@@ -1,4 +1,4 @@
-cargo build
+CARGO_TARGET_DIR=${PWD}/../target cargo build
 verilator --cc --exe -sv -o $PWD/test --vpi \
 --top-module TestModule verilator_main.cc test.v +incdir+$PWD/../target/debug \
 $PWD/../target/debug/libterminus_spaceport.a \

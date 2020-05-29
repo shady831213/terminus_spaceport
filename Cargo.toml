@@ -15,7 +15,7 @@ regex = "1"
 
 [lib]
 name = "terminus_spaceport"
-crate-type = ["rlib","staticlib", "dylib"]
+crate-type = ["rlib","staticlib", "cdylib"]
 
 [dependencies]
 lazy_static = "1.4"

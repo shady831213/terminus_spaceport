@@ -1,4 +1,4 @@
-cargo build --release
+CARGO_TARGET_DIR=${PWD}/../target cargo build --release
 echo "--------------------------"
 echo "Test test_raw_allocator..."
 #gcc -g -o test test_raw_allocator.c -I ../csrc -L../target/release -Wl,-Bstatic -lterminus_spaceport  -Wl,-Bdynamic -lpthread -ldl -lm
