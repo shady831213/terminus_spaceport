@@ -31,8 +31,8 @@ pub enum Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Error::Overlap(s1, s2) => writeln!(f, "{}:{}", s1, s2),
-            Error::Renamed(s1, s2) => writeln!(f, "{}:{}", s1, s2)
+            Error::Overlap(s1, s2) => write!(f, "{}:{}", s1, s2),
+            Error::Renamed(s1, s2) => write!(f, "{}:{}", s1, s2)
         }
     }
 }
