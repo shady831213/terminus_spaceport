@@ -28,7 +28,14 @@ pub enum Error {
     Renamed(String, String),
 }
 
-
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Error::Overlap(s1, s2) => writeln!(f, "{}:{}", s1, s2),
+            Error::Renamed(s1, s2) => writeln!(f, "{}:{}", s1, s2)
+        }
+    }
+}
 struct RegionCPtr(*const Box<Rc<Region>>);
 
 unsafe impl Send for RegionCPtr {}
