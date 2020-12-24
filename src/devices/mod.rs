@@ -15,3 +15,5 @@ mod sdl;
 
 #[cfg(feature = "sdl2")]
 pub use sdl::*;
+
+pub mod armory;

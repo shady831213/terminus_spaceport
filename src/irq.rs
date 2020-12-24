@@ -61,7 +61,7 @@ pub type IrqStatus = IrqCollection<IrqBit>;
 
 impl IrqStatus {
     pub fn pendings(&self) -> u64 {
-        self.0.iter().enumerate().map(|(i, s)| { (((s.enable && s.pending) as u64) << i as u64) }).fold(0, |acc, p| { acc | p })
+        self.0.iter().enumerate().map(|(i, s)| { ((s.enable && s.pending) as u64) << i as u64 }).fold(0, |acc, p| { acc | p })
     }
 
     pub fn clr_pendings(&mut self, val: u64) {
