@@ -78,7 +78,7 @@ pub struct VirtIONetDevice {
 }
 
 impl VirtIONetDevice {
-    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender, tap_name: &str, mac: u64) -> VirtIONetDevice {
+    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender, tap_name: &str, mac: u64, input_queue_size:u16) -> VirtIONetDevice {
         let mut virtio_device = Device::new(memory,
                                             irq_sender,
                                             1,
@@ -87,7 +87,12 @@ impl VirtIONetDevice {
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIONetInputQueue::new();
-            Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
+            let queue_size = if input_queue_size > 0 {
+                input_queue_size
+            } else {
+                1
+            };
+            Queue::new(&memory, QueueSetting { max_queue_size: queue_size }, input)
         };
         let tap = Rc::new(TunTap::new(tap_name, TUNTAP_MODE::Tap, false, true).unwrap());
         //must be larger than 2 + MAX_SKB_FRAGS, according to linux /drivers/net/virtio_net.c
