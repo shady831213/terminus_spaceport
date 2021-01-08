@@ -1,11 +1,13 @@
-use crate::memory::region::Region;
-use crate::memory::prelude::*;
-use std::rc::Rc;
-use crate::virtio::{Device, Queue, QueueClient, QueueSetting, Result, DeviceAccess, MMIODevice, DescMeta};
+use crate::devices::{KeyBoard, Mouse, MAX_ABS_SCALE};
 use crate::irq::IrqVecSender;
-use crate::devices::{KeyBoard, MAX_ABS_SCALE, Mouse};
+use crate::memory::prelude::*;
+use crate::memory::region::Region;
+use crate::virtio::{
+    DescMeta, Device, DeviceAccess, MMIODevice, Queue, QueueClient, QueueSetting, Result,
+};
 use std::cell::RefCell;
 use std::ops::DerefMut;
+use std::rc::Rc;
 
 const VIRTIO_INPUT_EV_SYN: u8 = 0x00;
 const VIRTIO_INPUT_EV_KEY: u8 = 0x01;
@@ -37,14 +39,11 @@ impl QueueClient for VirtIOInputInputQueue {
 
 struct VirtIOInputOutputQueue {
     irq_sender: IrqVecSender,
-
 }
 
 impl VirtIOInputOutputQueue {
     fn new(irq_sender: IrqVecSender) -> VirtIOInputOutputQueue {
-        VirtIOInputOutputQueue {
-            irq_sender,
-        }
+        VirtIOInputOutputQueue { irq_sender }
     }
 }
 
@@ -68,14 +67,26 @@ trait VirtIOInputDevice {
             let mut write_descs: Vec<DescMeta> = vec![];
             let mut write_buffer: Vec<u8> = vec![];
             let mut read_buffer: Vec<u8> = vec![];
-            let (read_len, _) = input_queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs, true, false).unwrap();
+            let (read_len, _) = input_queue
+                .extract(
+                    desc_head,
+                    &mut read_buffer,
+                    &mut write_buffer,
+                    &mut read_descs,
+                    &mut write_descs,
+                    true,
+                    false,
+                )
+                .unwrap();
             assert!(read_len >= 8);
             read_buffer[0..2].copy_from_slice(&ty.to_le_bytes());
             read_buffer[2..4].copy_from_slice(&code.to_le_bytes());
             read_buffer[4..8].copy_from_slice(&val.to_le_bytes());
             read_buffer.resize(8, 0);
             input_queue.copy_to(&read_descs, &read_buffer).unwrap();
-            input_queue.set_used(desc_head, read_buffer.len() as u32).unwrap();
+            input_queue
+                .set_used(desc_head, read_buffer.len() as u32)
+                .unwrap();
             input_queue.update_last_avail();
             device.get_irq_vec().sender(0).unwrap().send().unwrap();
             true
@@ -99,16 +110,14 @@ trait VirtIOInputDevice {
                 config[2] = len as u8;
                 config[8..8 + len].copy_from_slice(name.as_bytes())
             }
-            VIRTIO_INPUT_CFG_ID_SERIAL | VIRTIO_INPUT_CFG_ID_DEVIDS | VIRTIO_INPUT_CFG_PROP_BITS => {
-                config[2] = 0
-            }
+            VIRTIO_INPUT_CFG_ID_SERIAL
+            | VIRTIO_INPUT_CFG_ID_DEVIDS
+            | VIRTIO_INPUT_CFG_PROP_BITS => config[2] = 0,
             VIRTIO_INPUT_CFG_EV_BITS => {
                 config[2] = 0;
                 self.config_ev_write(config)
             }
-            VIRTIO_INPUT_CFG_ABS_INFO => {
-                self.config_abs_write(config)
-            }
+            VIRTIO_INPUT_CFG_ABS_INFO => self.config_abs_write(config),
             _ => {}
         }
     }
@@ -121,18 +130,15 @@ pub struct VirtIOKbDevice {
 
 impl VirtIOKbDevice {
     pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOKbDevice {
-        let mut virtio_device = Device::new(memory,
-                                            irq_sender,
-                                            1,
-                                            18, 0, 0,
-        );
+        let mut virtio_device = Device::new(memory, irq_sender, 1, 18, 0, 0);
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIOInputInputQueue::new();
             Queue::new(&memory, QueueSetting { max_queue_size: 32 }, input)
         };
         let output_queue = {
-            let output = VirtIOInputOutputQueue::new(virtio_device.get_irq_vec().sender(0).unwrap());
+            let output =
+                VirtIOInputOutputQueue::new(virtio_device.get_irq_vec().sender(0).unwrap());
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
@@ -167,7 +173,12 @@ impl VirtIOInputDevice for VirtIOKbDevice {
 
 impl KeyBoard for VirtIOKbDevice {
     fn send_key_event(&self, key_down: bool, val: u16) {
-        if self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY as u16, val, key_down as u32) {
+        if self.send_queue_envent(
+            &self.virtio_device,
+            VIRTIO_INPUT_EV_KEY as u16,
+            val,
+            key_down as u32,
+        ) {
             self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_SYN as u16, 0, 0);
         }
     }
@@ -234,7 +245,6 @@ const ABS_X: u8 = 0x00;
 const ABS_Y: u8 = 0x01;
 // const ABS_Z: u8 = 0x02;
 
-
 pub struct VirtIOMouseDevice {
     virtio_device: Device,
     buttons: RefCell<u32>,
@@ -244,18 +254,15 @@ pub struct VirtIOMouseDevice {
 
 impl VirtIOMouseDevice {
     pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOMouseDevice {
-        let mut virtio_device = Device::new(memory,
-                                            irq_sender,
-                                            1,
-                                            18, 0, 0,
-        );
+        let mut virtio_device = Device::new(memory, irq_sender, 1, 18, 0, 0);
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIOInputInputQueue::new();
             Queue::new(&memory, QueueSetting { max_queue_size: 32 }, input)
         };
         let output_queue = {
-            let output = VirtIOInputOutputQueue::new(virtio_device.get_irq_vec().sender(0).unwrap());
+            let output =
+                VirtIOInputOutputQueue::new(virtio_device.get_irq_vec().sender(0).unwrap());
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
@@ -330,16 +337,31 @@ impl Mouse for VirtIOMouseDevice {
             } else {
                 mouse_buttons |= 1 << 4;
             }
-            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_REL as u16, REL_WHEEL as u16, z as u32);
+            let ret = self.send_queue_envent(
+                &self.virtio_device,
+                VIRTIO_INPUT_EV_REL as u16,
+                REL_WHEEL as u16,
+                z as u32,
+            );
             if !ret {
                 return;
             }
         } else {
-            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_ABS as u16, ABS_X as u16, x as u32);
+            let ret = self.send_queue_envent(
+                &self.virtio_device,
+                VIRTIO_INPUT_EV_ABS as u16,
+                ABS_X as u16,
+                x as u32,
+            );
             if !ret {
                 return;
             }
-            let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_ABS as u16, ABS_Y as u16, y as u32);
+            let ret = self.send_queue_envent(
+                &self.virtio_device,
+                VIRTIO_INPUT_EV_ABS as u16,
+                ABS_Y as u16,
+                y as u32,
+            );
             if !ret {
                 return;
             }
@@ -352,7 +374,12 @@ impl Mouse for VirtIOMouseDevice {
                 let button = (mouse_buttons >> i as u32) & 1;
                 let cur_button = (*cur_buttons >> i as u32) & 1;
                 if button != cur_button {
-                    let ret = self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_KEY as u16, *b, button);
+                    let ret = self.send_queue_envent(
+                        &self.virtio_device,
+                        VIRTIO_INPUT_EV_KEY as u16,
+                        *b,
+                        button,
+                    );
                     if !ret {
                         return;
                     }
@@ -362,7 +389,9 @@ impl Mouse for VirtIOMouseDevice {
         }
         self.send_queue_envent(&self.virtio_device, VIRTIO_INPUT_EV_SYN as u16, 0, 0);
     }
-    fn mouse_absolute(&self) -> bool { true }
+    fn mouse_absolute(&self) -> bool {
+        true
+    }
 }
 
 #[derive_io(Bytes)]

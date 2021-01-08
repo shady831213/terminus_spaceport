@@ -1,4 +1,4 @@
-use std::sync::mpsc::{Sender, Receiver, channel, TryRecvError, SendError};
+use std::sync::mpsc::{channel, Receiver, SendError, Sender, TryRecvError};
 use std::sync::Mutex;
 
 struct ExitCtrlInner {
@@ -11,9 +11,8 @@ impl ExitCtrlInner {
     fn new() -> ExitCtrlInner {
         let (sender, receiver) = channel();
         let ctrc_sender = Sender::clone(&sender);
-        ctrlc::set_handler(move || {
-            ctrc_sender.send("Catch Ctrl-C!".to_string()).unwrap()
-        }).expect("Error setting Ctrl-C handler");
+        ctrlc::set_handler(move || ctrc_sender.send("Catch Ctrl-C!".to_string()).unwrap())
+            .expect("Error setting Ctrl-C handler");
         ExitCtrlInner {
             sender: sender,
             receiver,
@@ -25,7 +24,7 @@ impl ExitCtrlInner {
         self.received = None;
         loop {
             if self.receiver.try_recv().is_err() {
-                break
+                break;
             }
         }
     }
@@ -53,7 +52,7 @@ pub struct ExitCtrl {
 impl ExitCtrl {
     fn new() -> ExitCtrl {
         ExitCtrl {
-            inner: Mutex::new(ExitCtrlInner::new())
+            inner: Mutex::new(ExitCtrlInner::new()),
         }
     }
     pub fn poll(&self) -> Result<String, TryRecvError> {
@@ -67,6 +66,6 @@ impl ExitCtrl {
     }
 }
 
-lazy_static!(
-    pub static ref EXIT_CTRL:ExitCtrl = ExitCtrl::new();
-);
+lazy_static! {
+    pub static ref EXIT_CTRL: ExitCtrl = ExitCtrl::new();
+}

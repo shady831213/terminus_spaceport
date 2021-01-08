@@ -1,17 +1,22 @@
-extern crate tun_tap;
 extern crate libc;
+extern crate tun_tap;
 
-use tun_tap::Iface;
 use self::libc::c_int;
 use std::ops::Deref;
 use std::os::unix::io::AsRawFd;
+use tun_tap::Iface;
 pub use tun_tap::Mode as TUNTAP_MODE;
 pub struct TunTap {
-    iface: Iface
+    iface: Iface,
 }
 
 impl TunTap {
-    pub fn new(ifname: &str, mode: TUNTAP_MODE, packet_info: bool, non_block: bool) -> std::io::Result<TunTap> {
+    pub fn new(
+        ifname: &str,
+        mode: TUNTAP_MODE,
+        packet_info: bool,
+        non_block: bool,
+    ) -> std::io::Result<TunTap> {
         let iface = if packet_info {
             Iface::new(ifname, mode)?
         } else {

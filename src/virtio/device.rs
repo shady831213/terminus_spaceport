@@ -1,31 +1,33 @@
-use crate::memory::region::Region;
 use super::queue::Queue;
 use crate::irq::{IrqVec, IrqVecSender};
-use std::rc::Rc;
+use crate::memory::region::Region;
+use crate::virtio::{
+    MAX_QUEUE,
+    MMIO_CONFIG,
+    MMIO_DEVICE_FEATURES,
+    MMIO_DEVICE_FEATURES_SEL,
+    MMIO_DEVICE_ID,
+    MMIO_INTERRUPT_ACK,
+    MMIO_INTERRUPT_STATUS,
+    MMIO_MAGIC_VALUE,
+    MMIO_QUEUE_AVAIL_HIGH,
+    MMIO_QUEUE_AVAIL_LOW,
+    MMIO_QUEUE_DESC_HIGH,
+    MMIO_QUEUE_DESC_LOW,
+    MMIO_QUEUE_NOTIFY,
+    MMIO_QUEUE_NUM,
+    MMIO_QUEUE_NUM_MAX,
+    MMIO_QUEUE_READY,
+    // MMIO_DRIVER_FEATURES,
+    MMIO_QUEUE_SEL,
+    MMIO_QUEUE_USED_HIGH,
+    MMIO_QUEUE_USED_LOW,
+    MMIO_STATUS,
+    MMIO_VENDOR_ID,
+    MMIO_VERSION,
+};
 use std::cell::RefCell;
-use crate::virtio::{MAX_QUEUE,
-                    MMIO_MAGIC_VALUE,
-                    MMIO_VERSION,
-                    MMIO_DEVICE_ID,
-                    MMIO_VENDOR_ID,
-                    MMIO_DEVICE_FEATURES,
-                    MMIO_DEVICE_FEATURES_SEL,
-                    // MMIO_DRIVER_FEATURES,
-                    MMIO_QUEUE_SEL,
-                    MMIO_QUEUE_NUM_MAX,
-                    MMIO_QUEUE_NUM,
-                    MMIO_QUEUE_READY,
-                    MMIO_QUEUE_NOTIFY,
-                    MMIO_INTERRUPT_STATUS,
-                    MMIO_INTERRUPT_ACK,
-                    MMIO_STATUS,
-                    MMIO_QUEUE_DESC_LOW,
-                    MMIO_QUEUE_DESC_HIGH,
-                    MMIO_QUEUE_AVAIL_LOW,
-                    MMIO_QUEUE_AVAIL_HIGH,
-                    MMIO_QUEUE_USED_LOW,
-                    MMIO_QUEUE_USED_HIGH,
-                    MMIO_CONFIG};
+use std::rc::Rc;
 
 pub struct Device {
     memory: Rc<Region>,
@@ -41,18 +43,23 @@ pub struct Device {
 }
 
 impl Device {
-    pub fn new(memory: &Rc<Region>,
-               irq_sender: IrqVecSender,
-               num_irqs: usize,
-               device_id: u32,
-               vendor_id: u32,
-               device_features: u32) -> Device {
+    pub fn new(
+        memory: &Rc<Region>,
+        irq_sender: IrqVecSender,
+        num_irqs: usize,
+        device_id: u32,
+        vendor_id: u32,
+        device_features: u32,
+    ) -> Device {
         let irq_vec = IrqVec::new(num_irqs);
         for i in 0..num_irqs {
             let s = irq_sender.clone();
-            irq_vec.binder().bind(i, move || {
-                s.send().unwrap();
-            }).unwrap();
+            irq_vec
+                .binder()
+                .bind(i, move || {
+                    s.send().unwrap();
+                })
+                .unwrap();
         }
         Device {
             memory: Rc::clone(memory),
@@ -103,13 +110,21 @@ impl Device {
 pub trait DeviceAccess {
     fn device(&self) -> &Device;
 
-    fn magic(&self) -> u32 { 0x74726976 }
+    fn magic(&self) -> u32 {
+        0x74726976
+    }
 
-    fn version(&self) -> u32 { 2 }
+    fn version(&self) -> u32 {
+        2
+    }
 
-    fn device_id(&self) -> u32 { self.device().device_id }
+    fn device_id(&self) -> u32 {
+        self.device().device_id
+    }
 
-    fn vendor_id(&self) -> u32 { self.device().vendor_id }
+    fn vendor_id(&self) -> u32 {
+        self.device().vendor_id
+    }
 
     fn device_features(&self) -> u32 {
         let sel = self.device().device_features_sel.borrow();
@@ -130,46 +145,122 @@ pub trait DeviceAccess {
         *self.device().device_features_sel.borrow_mut() = *val
     }
 
-    fn queue_sel(&self) -> u32 { *self.device().queue_sel.borrow() }
+    fn queue_sel(&self) -> u32 {
+        *self.device().queue_sel.borrow()
+    }
 
     fn set_queue_sel(&self, val: &u32) {
         assert!((*val as usize) < self.device().queues.len());
         *self.device().queue_sel.borrow_mut() = *val
     }
 
-    fn queue_num_max(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_queue_max_size() as u32 }
+    fn queue_num_max(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_queue_max_size() as u32
+    }
 
-    fn queue_num(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_queue_size() as u32 }
+    fn queue_num(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_queue_size() as u32
+    }
 
-    fn set_queue_num(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_queue_size(*val as u16) }
+    fn set_queue_num(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_queue_size(*val as u16)
+    }
 
-    fn queue_desc_low(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_desc_addr() as u32 }
+    fn queue_desc_low(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_desc_addr() as u32
+    }
 
-    fn set_queue_desc_low(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_desc_addr_low(*val) }
+    fn set_queue_desc_low(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_desc_addr_low(*val)
+    }
 
-    fn queue_avail_low(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_avail_addr() as u32 }
+    fn queue_avail_low(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_avail_addr() as u32
+    }
 
-    fn set_queue_avail_low(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_avail_addr_low(*val) }
+    fn set_queue_avail_low(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_avail_addr_low(*val)
+    }
 
-    fn queue_used_low(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_used_addr() as u32 }
+    fn queue_used_low(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_used_addr() as u32
+    }
 
-    fn set_queue_used_low(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_used_addr_low(*val) }
+    fn set_queue_used_low(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_used_addr_low(*val)
+    }
 
-    fn queue_desc_high(&self) -> u32 { (self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_desc_addr() >> 32) as u32 }
+    fn queue_desc_high(&self) -> u32 {
+        (self
+            .device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_desc_addr()
+            >> 32) as u32
+    }
 
-    fn set_queue_desc_high(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_desc_addr_high(*val) }
+    fn set_queue_desc_high(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_desc_addr_high(*val)
+    }
 
-    fn queue_avail_high(&self) -> u32 { (self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_avail_addr() >> 32) as u32 }
+    fn queue_avail_high(&self) -> u32 {
+        (self
+            .device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_avail_addr()
+            >> 32) as u32
+    }
 
-    fn set_queue_avail_high(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_avail_addr_high(*val) }
+    fn set_queue_avail_high(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_avail_addr_high(*val)
+    }
 
-    fn queue_used_high(&self) -> u32 { (self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_used_addr() >> 32) as u32 }
+    fn queue_used_high(&self) -> u32 {
+        (self
+            .device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_used_addr()
+            >> 32) as u32
+    }
 
-    fn set_queue_used_high(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_used_addr_high(*val) }
+    fn set_queue_used_high(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_used_addr_high(*val)
+    }
 
-    fn queue_ready(&self) -> u32 { self.device().get_queue(*self.device().queue_sel.borrow() as usize).get_ready() as u32 }
+    fn queue_ready(&self) -> u32 {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .get_ready() as u32
+    }
 
-    fn set_queue_ready(&self, val: &u32) { self.device().get_queue(*self.device().queue_sel.borrow() as usize).set_ready(*val & 0x1 == 0x1) }
+    fn set_queue_ready(&self, val: &u32) {
+        self.device()
+            .get_queue(*self.device().queue_sel.borrow() as usize)
+            .set_ready(*val & 0x1 == 0x1)
+    }
 
     fn int_status(&self) -> u32 {
         let irq = self.device().get_irq_vec();
@@ -203,7 +294,7 @@ pub trait DeviceAccess {
             0 => 0xff,
             1 => 0xffff,
             2 => 0xffff_ffff,
-            _ => 0xffffffff_ffffffff
+            _ => 0xffffffff_ffffffff,
         }
     }
 
@@ -256,7 +347,7 @@ pub trait MMIODevice: DeviceAccess {
                 MMIO_QUEUE_READY => self.queue_ready(),
                 MMIO_INTERRUPT_STATUS => self.int_status(),
                 MMIO_STATUS => self.status(),
-                _ => 0
+                _ => 0,
             }
         } else {
             0
@@ -288,7 +379,7 @@ pub trait MMIODevice: DeviceAccess {
         if *offset >= MMIO_CONFIG {
             let mut bytes = [0; 4];
             self.config(*offset - MMIO_CONFIG, &mut bytes);
-            return u32::from_le_bytes(bytes)
+            return u32::from_le_bytes(bytes);
         }
         self.read_common(offset)
     }
@@ -300,4 +391,3 @@ pub trait MMIODevice: DeviceAccess {
         self.write_common(offset, val)
     }
 }
-

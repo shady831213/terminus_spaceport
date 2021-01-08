@@ -1,7 +1,7 @@
-use std::cell::{RefCell, RefMut};
 use crate::devices::{FrameBuffer, PixelFormat};
-use std::cmp::min;
 use crate::memory::prelude::*;
+use std::cell::{RefCell, RefMut};
+use std::cmp::min;
 use std::rc::Rc;
 
 const SIMPLE_FB_PAGE_SIZE: u32 = 4096;
@@ -45,7 +45,10 @@ impl Fb {
 }
 
 impl FrameBuffer for Fb {
-    fn refresh<DRAW: Fn(i32, i32, u32, u32) -> Result<(), String>>(&self, draw: DRAW) -> Result<(), String> {
+    fn refresh<DRAW: Fn(i32, i32, u32, u32) -> Result<(), String>>(
+        &self,
+        draw: DRAW,
+    ) -> Result<(), String> {
         let mut dirties_ref = self.dirties.borrow_mut();
         let mut page_idx: u32 = 0;
         let mut y_start: u32 = 0;
@@ -63,7 +66,10 @@ impl FrameBuffer for Fb {
                     dirties &= !(1 << page_offset);
                     let byte_offset = (page_idx + page_offset) << SIMPLE_FB_PAGE_SIZE_SHIFT;
                     let y_start_offset = byte_offset / stride;
-                    let y_end_offset = min(((byte_offset + SIMPLE_FB_PAGE_SIZE - 1) / stride) + 1, self.height);
+                    let y_end_offset = min(
+                        ((byte_offset + SIMPLE_FB_PAGE_SIZE - 1) / stride) + 1,
+                        self.height,
+                    );
                     if y_start == y_end {
                         y_start = y_start_offset;
                         y_end = y_end_offset;

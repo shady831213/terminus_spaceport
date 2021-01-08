@@ -1,13 +1,13 @@
-extern crate terminus_spaceport;
 extern crate lazy_static;
+extern crate terminus_spaceport;
 
+use std::io::Read;
+use std::io::Write;
+use std::sync::Once;
 use std::thread::sleep;
 use std::time::Duration;
-use std::io::Write;
-use std::io::Read;
-use terminus_spaceport::devices::{TERM, term_exit};
+use terminus_spaceport::devices::{term_exit, TERM};
 use terminus_spaceport::EXIT_CTRL;
-use std::sync::{Once};
 
 struct A();
 
@@ -29,7 +29,10 @@ fn cleanup() {
 
 fn main() {
     let _a = A();
-    TERM.stdout().lock().write("Hello World!\n".as_bytes()).unwrap();
+    TERM.stdout()
+        .lock()
+        .write("Hello World!\n".as_bytes())
+        .unwrap();
     TERM.stdout().lock().flush().unwrap();
     'outer: loop {
         if let Ok(msg) = EXIT_CTRL.poll() {
@@ -48,7 +51,10 @@ fn main() {
                     if read_buffer.contains(&('q' as u8)) {
                         EXIT_CTRL.exit("quit!").unwrap();
                     }
-                    TERM.stdout().lock().write(format!("got {}!\n", len).as_bytes()).unwrap();
+                    TERM.stdout()
+                        .lock()
+                        .write(format!("got {}!\n", len).as_bytes())
+                        .unwrap();
                     TERM.stdout().lock().write(&read_buffer).unwrap();
                     TERM.stdout().lock().flush().unwrap();
                 }

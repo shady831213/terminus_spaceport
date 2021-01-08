@@ -1,17 +1,25 @@
 use super::*;
+use std::borrow::Borrow;
+use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc};
 use std::thread;
-use std::sync::mpsc::Sender;
-use std::borrow::Borrow;
 
 #[test]
 fn list_basic() {
-    let list = List::cons(MemInfo { base: 2, size: 0 },
-                          &List::cons(MemInfo { base: 4, size: 0 }, &List::cons(MemInfo { base: 0, size: 3 }, &List::nil())));
+    let list = List::cons(
+        MemInfo { base: 2, size: 0 },
+        &List::cons(
+            MemInfo { base: 4, size: 0 },
+            &List::cons(MemInfo { base: 0, size: 3 }, &List::nil()),
+        ),
+    );
     assert_eq!(list.cdr().car().unwrap().base, 4);
     assert_eq!(list.cdr().cdr().car().unwrap().size, 3);
 
-    let append = List::cons(MemInfo { base: 7, size: 0 }, &List::cons(MemInfo { base: 5, size: 6 }, &list));
+    let append = List::cons(
+        MemInfo { base: 7, size: 0 },
+        &List::cons(MemInfo { base: 5, size: 6 }, &list),
+    );
     assert_eq!(append.car().unwrap().base, 7);
     assert_eq!(append.cdr().car().unwrap().base, 5);
     assert_eq!(append.cdr().cdr().car().unwrap().base, 2);
@@ -20,8 +28,13 @@ fn list_basic() {
 
 #[test]
 fn list_iter() {
-    let list = List::cons(MemInfo { base: 1, size: 1 },
-                          &List::cons(MemInfo { base: 2, size: 2 }, &List::cons(MemInfo { base: 3, size: 3 }, &List::nil())));
+    let list = List::cons(
+        MemInfo { base: 1, size: 1 },
+        &List::cons(
+            MemInfo { base: 2, size: 2 },
+            &List::cons(MemInfo { base: 3, size: 3 }, &List::nil()),
+        ),
+    );
     let mut id: u64 = 1;
     list.iter().for_each(|i| {
         assert_eq!(i.car().unwrap().size, i.car().unwrap().base);
@@ -33,10 +46,20 @@ fn list_iter() {
 
 #[test]
 fn list_append() {
-    let list1 = List::cons(MemInfo { base: 1, size: 1 },
-                           &List::cons(MemInfo { base: 2, size: 2 }, &List::cons(MemInfo { base: 3, size: 3 }, &List::nil())));
-    let list2 = List::cons(MemInfo { base: 4, size: 4 },
-                           &List::cons(MemInfo { base: 5, size: 5 }, &List::cons(MemInfo { base: 6, size: 6 }, &List::nil())));
+    let list1 = List::cons(
+        MemInfo { base: 1, size: 1 },
+        &List::cons(
+            MemInfo { base: 2, size: 2 },
+            &List::cons(MemInfo { base: 3, size: 3 }, &List::nil()),
+        ),
+    );
+    let list2 = List::cons(
+        MemInfo { base: 4, size: 4 },
+        &List::cons(
+            MemInfo { base: 5, size: 5 },
+            &List::cons(MemInfo { base: 6, size: 6 }, &List::nil()),
+        ),
+    );
     let mut id: u64 = 1;
     List::append(&list1, &list2).iter().for_each(|i| {
         assert_eq!(i.car().unwrap().size, i.car().unwrap().base);
@@ -48,9 +71,14 @@ fn list_append() {
 
 #[test]
 fn list_delete() {
-    let list1 = List::cons(MemInfo { base: 1, size: 1 },
-                           &List::cons(MemInfo { base: 2, size: 2 }, &List::cons(MemInfo { base: 3, size: 3 }, &List::nil())));
-    let (item, list2) = List::delete(&list1, |item| { item.car().unwrap().base == 2 });
+    let list1 = List::cons(
+        MemInfo { base: 1, size: 1 },
+        &List::cons(
+            MemInfo { base: 2, size: 2 },
+            &List::cons(MemInfo { base: 3, size: 3 }, &List::nil()),
+        ),
+    );
+    let (item, list2) = List::delete(&list1, |item| item.car().unwrap().base == 2);
     assert_eq!(item.unwrap().car().unwrap().size, 2);
     assert_eq!(list2.iter().count(), 2)
 }
@@ -78,7 +106,10 @@ fn basic_free() {
     allocator.free(1);
     allocator.free(6);
     assert!(allocator.free_blocks.iter().count() == 1);
-    assert_eq!(allocator.free_blocks.car(), Some(MemInfo { base: 1, size: 9 }));
+    assert_eq!(
+        allocator.free_blocks.car(),
+        Some(MemInfo { base: 1, size: 9 })
+    );
     assert_eq!(allocator.alloced_blocks.car(), None);
 }
 
@@ -86,21 +117,25 @@ fn basic_free() {
 fn basic_concurrency_alloc() {
     let allocator = Arc::new(LockedAllocator::new(1, 9));
     let (tx, rx) = mpsc::channel();
-    fn do_job<F: Fn(&LockedAllocator) -> Option<MemInfo> + Send + 'static>(job: F, tx: &Sender<Option<MemInfo>>, la: &Arc<LockedAllocator>) {
+    fn do_job<F: Fn(&LockedAllocator) -> Option<MemInfo> + Send + 'static>(
+        job: F,
+        tx: &Sender<Option<MemInfo>>,
+        la: &Arc<LockedAllocator>,
+    ) {
         let done = mpsc::Sender::clone(tx);
         let _la = Arc::clone(&la);
         thread::spawn(move || {
             let result = job(_la.borrow());
-//            println!("send, done!");
+            //            println!("send, done!");
             done.send(result).unwrap();
         });
     };
     let mut addrs = vec![];
 
-    do_job(|a| { a.alloc(4, 1) }, &tx, &allocator);
-    do_job(|a| { a.alloc(2, 1) }, &tx, &allocator);
-    do_job(|a| { a.alloc(1, 1) }, &tx, &allocator);
-    do_job(|a| { a.alloc(2, 1) }, &tx, &allocator);
+    do_job(|a| a.alloc(4, 1), &tx, &allocator);
+    do_job(|a| a.alloc(2, 1), &tx, &allocator);
+    do_job(|a| a.alloc(1, 1), &tx, &allocator);
+    do_job(|a| a.alloc(2, 1), &tx, &allocator);
     for _ in 0..=3 {
         addrs.push(rx.recv().unwrap());
         println!("done!")

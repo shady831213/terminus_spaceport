@@ -5,9 +5,9 @@ use test::Bencher;
 
 extern crate terminus_spaceport;
 
-use terminus_spaceport::memory::region::*;
 use rand::Rng;
 use std::ops::Deref;
+use terminus_spaceport::memory::region::*;
 use terminus_spaceport::space::Space;
 
 #[cfg(feature = "memprof")]
@@ -39,7 +39,9 @@ fn bench_model_access(b: &mut Bencher) {
         U64Access::read(region.deref(), get_addr());
     });
     #[cfg(feature = "memprof")]
-        unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
+    unsafe {
+        jemalloc_sys::malloc_stats_print(None, null_mut(), null())
+    };
 }
 
 #[bench]
@@ -49,9 +51,15 @@ fn bench_space_access(b: &mut Bencher) {
     let region3 = GHEAP.lazy_alloc(0x0001000, 1).unwrap();
 
     let mut space = Space::new();
-    space.add_region("memory", &Region::remap(0x8000_0000, &region)).unwrap();
-    space.add_region("memory2", &Region::remap(0x200_0000, &region2)).unwrap();
-    space.add_region("memory3", &Region::remap(0x2000_0000, &region3)).unwrap();
+    space
+        .add_region("memory", &Region::remap(0x8000_0000, &region))
+        .unwrap();
+    space
+        .add_region("memory2", &Region::remap(0x200_0000, &region2))
+        .unwrap();
+    space
+        .add_region("memory3", &Region::remap(0x2000_0000, &region3))
+        .unwrap();
 
     let mut rng = rand::thread_rng();
     let mut addrs = vec![];
@@ -69,10 +77,14 @@ fn bench_space_access(b: &mut Bencher) {
         data
     };
     b.iter(|| {
-        space.write_bytes(get_addr(), &0xaau64.to_le_bytes()).unwrap();
+        space
+            .write_bytes(get_addr(), &0xaau64.to_le_bytes())
+            .unwrap();
         let mut data = [0u8; 8];
         space.read_bytes(get_addr(), &mut data).unwrap();
     });
     #[cfg(feature = "memprof")]
-        unsafe { jemalloc_sys::malloc_stats_print(None, null_mut(), null()) };
+    unsafe {
+        jemalloc_sys::malloc_stats_print(None, null_mut(), null())
+    };
 }

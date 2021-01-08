@@ -1,6 +1,6 @@
-use std::result;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
+use std::result;
 
 #[derive(Debug)]
 pub enum Error {
@@ -61,7 +61,11 @@ pub type IrqStatus = IrqCollection<IrqBit>;
 
 impl IrqStatus {
     pub fn pendings(&self) -> u64 {
-        self.0.iter().enumerate().map(|(i, s)| { ((s.enable && s.pending) as u64) << i as u64 }).fold(0, |acc, p| { acc | p })
+        self.0
+            .iter()
+            .enumerate()
+            .map(|(i, s)| ((s.enable && s.pending) as u64) << i as u64)
+            .fold(0, |acc, p| acc | p)
     }
 
     pub fn clr_pendings(&mut self, val: u64) {
@@ -116,7 +120,6 @@ struct IrqVecInner {
     handlers: IrqHandlers,
 }
 
-
 impl IrqVecInner {
     pub fn new(len: usize) -> IrqVecInner {
         let mut irq = IrqVecInner {
@@ -132,13 +135,13 @@ impl IrqVecInner {
 }
 
 pub struct IrqVec {
-    vec: Rc<RefCell<IrqVecInner>>
+    vec: Rc<RefCell<IrqVecInner>>,
 }
 
 impl IrqVec {
     pub fn new(len: usize) -> IrqVec {
         IrqVec {
-            vec: Rc::new(RefCell::new(IrqVecInner::new(len)))
+            vec: Rc::new(RefCell::new(IrqVecInner::new(len))),
         }
     }
     pub fn sender(&self, irq_num: usize) -> Result<IrqVecSender> {
@@ -184,7 +187,10 @@ impl IrqVec {
     }
 
     pub fn set_enable_uncheck(&self, irq_num: usize, value: bool) {
-        self.vec.borrow_mut().status.set_enable_uncheck(irq_num, value)
+        self.vec
+            .borrow_mut()
+            .status
+            .set_enable_uncheck(irq_num, value)
     }
 
     pub fn pending(&self, irq_num: usize) -> Result<bool> {
@@ -200,10 +206,12 @@ impl IrqVec {
     }
 
     pub fn set_pending_uncheck(&self, irq_num: usize, value: bool) {
-        self.vec.borrow_mut().status.set_pending_uncheck(irq_num, value)
+        self.vec
+            .borrow_mut()
+            .status
+            .set_pending_uncheck(irq_num, value)
     }
 }
-
 
 pub struct IrqVecSender {
     irq_num: usize,
@@ -227,7 +235,10 @@ impl IrqVecSender {
     }
 
     pub fn clear(&self) -> Result<()> {
-        self.irq_vec.borrow_mut().status.set_pending(self.irq_num, false)
+        self.irq_vec
+            .borrow_mut()
+            .status
+            .set_pending(self.irq_num, false)
     }
 }
 

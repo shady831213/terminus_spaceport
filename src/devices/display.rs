@@ -1,6 +1,6 @@
 use std::cell::RefMut;
 
-pub const MAX_ABS_SCALE:i32 = 32768;
+pub const MAX_ABS_SCALE: i32 = 32768;
 
 #[derive(Copy, Clone)]
 pub enum PixelFormat {
@@ -18,7 +18,10 @@ impl PixelFormat {
 }
 
 pub trait FrameBuffer {
-    fn refresh<DRAW: Fn(i32, i32, u32, u32) -> Result<(), String>>(&self, d: DRAW) -> Result<(), String>;
+    fn refresh<DRAW: Fn(i32, i32, u32, u32) -> Result<(), String>>(
+        &self,
+        d: DRAW,
+    ) -> Result<(), String>;
     fn data(&self) -> RefMut<'_, Vec<u8>>;
     fn width(&self) -> u32;
     fn height(&self) -> u32;
@@ -29,7 +32,6 @@ pub trait FrameBuffer {
 pub const MOUSE_BTN_LEFT: u32 = 0x1;
 pub const MOUSE_BTN_RIGHT: u32 = 0x2;
 pub const MOUSE_BTN_MIDDLE: u32 = 0x4;
-
 
 pub trait KeyBoard {
     fn send_key_event(&self, down: bool, val: u16);

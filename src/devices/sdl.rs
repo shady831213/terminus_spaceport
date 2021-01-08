@@ -1,16 +1,18 @@
 extern crate sdl2;
 
-use self::sdl2::EventPump;
-use std::cell::RefCell;
-use self::sdl2::rect::Rect;
 use self::sdl2::event::Event;
-use crate::devices::display::{FrameBuffer, KeyBoard, Mouse, MOUSE_BTN_LEFT, MOUSE_BTN_RIGHT, MOUSE_BTN_MIDDLE};
 use self::sdl2::keyboard::Scancode;
-use self::sdl2::mouse::{MouseButton, MouseState, MouseWheelDirection, Cursor};
+use self::sdl2::mouse::{Cursor, MouseButton, MouseState, MouseWheelDirection};
+use self::sdl2::pixels::{Color, PixelFormatEnum};
+use self::sdl2::rect::Rect;
 use self::sdl2::surface::Surface;
-use self::sdl2::pixels::{PixelFormatEnum, Color};
-use self::sdl2::video::{Window, DisplayMode};
-use crate::devices::{PixelFormat, KeyCode, MAX_ABS_SCALE};
+use self::sdl2::video::{DisplayMode, Window};
+use self::sdl2::EventPump;
+use crate::devices::display::{
+    FrameBuffer, KeyBoard, Mouse, MOUSE_BTN_LEFT, MOUSE_BTN_MIDDLE, MOUSE_BTN_RIGHT,
+};
+use crate::devices::{KeyCode, PixelFormat, MAX_ABS_SCALE};
+use std::cell::RefCell;
 
 impl PixelFormat {
     fn sdl2format(&self) -> PixelFormatEnum {
@@ -272,7 +274,7 @@ impl KeyCode {
 pub struct SDL {
     event_pump: RefCell<EventPump>,
     window: Window,
-    _cursor:Cursor,
+    _cursor: Cursor,
     width: u32,
     height: u32,
     key_pressed: RefCell<[bool; 256]>,
@@ -280,14 +282,26 @@ pub struct SDL {
 }
 
 impl SDL {
-    pub fn new<QF: Fn() + 'static>(title: &str, width: u32, height: u32, format: PixelFormat, quit: QF) -> Result<SDL, String> {
+    pub fn new<QF: Fn() + 'static>(
+        title: &str,
+        width: u32,
+        height: u32,
+        format: PixelFormat,
+        quit: QF,
+    ) -> Result<SDL, String> {
         let context = sdl2::init()?;
         let video_subsystem = context.video()?;
-        let mut window = video_subsystem.window(title, width, height)
+        let mut window = video_subsystem
+            .window(title, width, height)
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        window.set_display_mode(DisplayMode::new(format.sdl2format(), width as i32, height as i32, 60))?;
+        window.set_display_mode(DisplayMode::new(
+            format.sdl2format(),
+            width as i32,
+            height as i32,
+            60,
+        ))?;
 
         let cursor_data = vec![0; 1];
         let cursor = Cursor::new(&cursor_data, &cursor_data, 8, 1, 0, 0)?;
@@ -300,7 +314,7 @@ impl SDL {
         Ok(SDL {
             event_pump: RefCell::new(event_pump),
             window,
-            _cursor:cursor,
+            _cursor: cursor,
             width,
             height,
             key_pressed: RefCell::new([false; 256]),
@@ -328,11 +342,29 @@ impl SDL {
         KeyCode::from_sdl_scancode(code) as u16
     }
 
-    fn mouse_motion<I: Mouse>(&self, input: &I, state: &MouseState, x: i32, y: i32, xrel: i32, yrel: i32) {
+    fn mouse_motion<I: Mouse>(
+        &self,
+        input: &I,
+        state: &MouseState,
+        x: i32,
+        y: i32,
+        xrel: i32,
+        yrel: i32,
+    ) {
         if input.mouse_absolute() {
-            input.send_mouse_event(self.mouse_x_abs(x), self.mouse_y_abs(y), 0, self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()))
+            input.send_mouse_event(
+                self.mouse_x_abs(x),
+                self.mouse_y_abs(y),
+                0,
+                self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()),
+            )
         } else {
-            input.send_mouse_event(xrel, yrel, 0, self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()))
+            input.send_mouse_event(
+                xrel,
+                yrel,
+                0,
+                self.sdle_mouse_state_to_mouse_btn(state.to_sdl_state()),
+            )
         }
     }
 
@@ -361,7 +393,7 @@ impl SDL {
         match dir {
             MouseWheelDirection::Normal => z,
             MouseWheelDirection::Flipped => -z,
-            _ => 0
+            _ => 0,
         }
     }
 
@@ -388,7 +420,6 @@ impl SDL {
         buttons
     }
 
-
     fn mouse_x_abs(&self, x: i32) -> i32 {
         x * MAX_ABS_SCALE / self.width as i32
     }
@@ -397,11 +428,21 @@ impl SDL {
         y * MAX_ABS_SCALE / self.height as i32
     }
 
-
-    pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(&self, fb: &FB, k: &K, m: &M) -> Result<(), String> {
+    pub fn refresh<FB: FrameBuffer, K: KeyBoard, M: Mouse>(
+        &self,
+        fb: &FB,
+        k: &K,
+        m: &M,
+    ) -> Result<(), String> {
         let mut event_pump = self.event_pump.borrow_mut();
         let mut data = fb.data();
-        let surface = Surface::from_data(&mut data, fb.width(), fb.height(), fb.stride(), fb.pixel_format().sdl2format())?;
+        let surface = Surface::from_data(
+            &mut data,
+            fb.width(),
+            fb.height(),
+            fb.stride(),
+            fb.pixel_format().sdl2format(),
+        )?;
         let screen = self.window.surface(&event_pump)?;
         fb.refresh(|x, y, w, h| {
             let rect = Rect::new(x, y, w, h);
@@ -412,15 +453,36 @@ impl SDL {
         screen.update_window()?;
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => {
-                    (*&self.quit)()
-                }
-                Event::KeyDown { scancode: Some(ref code), .. } => { self.key_down(k, code) }
-                Event::KeyUp { scancode: Some(ref code), .. } => { self.key_up(k, code) }
-                Event::MouseMotion { mousestate: ref state, x, y, xrel, yrel, .. } => { self.mouse_motion(m, state, x, y, xrel, yrel) }
-                Event::MouseButtonDown { x, y, mouse_btn: ref btn, .. } => { self.mouse_button_down(m, x, y, btn) }
-                Event::MouseButtonUp { x, y, .. } => { self.mouse_button_up(m, x, y) }
-                Event::MouseWheel { x, y, direction: ref dir, .. } => { self.mouse_wheel(m, x, y, dir) }
+                Event::Quit { .. } => (*&self.quit)(),
+                Event::KeyDown {
+                    scancode: Some(ref code),
+                    ..
+                } => self.key_down(k, code),
+                Event::KeyUp {
+                    scancode: Some(ref code),
+                    ..
+                } => self.key_up(k, code),
+                Event::MouseMotion {
+                    mousestate: ref state,
+                    x,
+                    y,
+                    xrel,
+                    yrel,
+                    ..
+                } => self.mouse_motion(m, state, x, y, xrel, yrel),
+                Event::MouseButtonDown {
+                    x,
+                    y,
+                    mouse_btn: ref btn,
+                    ..
+                } => self.mouse_button_down(m, x, y, btn),
+                Event::MouseButtonUp { x, y, .. } => self.mouse_button_up(m, x, y),
+                Event::MouseWheel {
+                    x,
+                    y,
+                    direction: ref dir,
+                    ..
+                } => self.mouse_wheel(m, x, y, dir),
                 _ => {}
             }
         }

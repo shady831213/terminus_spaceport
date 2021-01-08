@@ -5,7 +5,10 @@ pub enum List<T> {
     Nil,
 }
 
-impl<T> List<T> where T: Copy {
+impl<T> List<T>
+where
+    T: Copy,
+{
     pub fn cons(v: T, list: &Arc<Self>) -> Arc<Self> {
         Arc::new(Self::Cons(v, Arc::clone(list)))
     }
@@ -17,11 +20,14 @@ impl<T> List<T> where T: Copy {
     pub fn append(list1: &Arc<Self>, list2: &Arc<Self>) -> Arc<Self> {
         match list1.as_ref() {
             Self::Nil => Arc::clone(list2),
-            Self::Cons(v, l) => Self::cons(*v, &Self::append(l, list2))
+            Self::Cons(v, l) => Self::cons(*v, &Self::append(l, list2)),
         }
     }
 
-    pub fn delete<F: Fn(&&Arc<Self>)->bool>(list:&Arc<Self>, condition:F) -> (Option<&Arc<Self>>, Arc<Self>) {
+    pub fn delete<F: Fn(&&Arc<Self>) -> bool>(
+        list: &Arc<Self>,
+        condition: F,
+    ) -> (Option<&Arc<Self>>, Arc<Self>) {
         let mut front = Self::nil();
 
         let find_fn = |item: &&Arc<Self>| {
@@ -50,9 +56,7 @@ impl<T> List<T> where T: Copy {
     }
 
     pub fn iter<'a>(self: &'a Arc<Self>) -> Iter<'a, T> {
-        Iter {
-            cur: self
-        }
+        Iter { cur: self }
     }
 
     pub fn car(self: &Arc<Self>) -> Option<T> {
@@ -73,10 +77,13 @@ impl<T> List<T> where T: Copy {
 }
 
 pub struct Iter<'a, T> {
-    cur: &'a Arc<List<T>>
+    cur: &'a Arc<List<T>>,
 }
 
-impl<'a, T> Iterator for Iter<'a, T> where T: Copy {
+impl<'a, T> Iterator for Iter<'a, T>
+where
+    T: Copy,
+{
     type Item = &'a Arc<List<T>>;
     fn next(&mut self) -> Option<Self::Item> {
         let cur = self.cur;
@@ -88,4 +95,3 @@ impl<'a, T> Iterator for Iter<'a, T> where T: Copy {
         }
     }
 }
-

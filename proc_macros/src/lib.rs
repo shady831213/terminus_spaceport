@@ -3,11 +3,11 @@ extern crate proc_macro;
 extern crate quote;
 
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, Error};
+use proc_macro2::{Ident, Span};
 use syn::parse::{Parse, ParseStream, Result};
-use syn::Token;
 use syn::punctuated::Punctuated;
-use proc_macro2::{Span, Ident};
+use syn::Token;
+use syn::{parse_macro_input, Error};
 
 #[proc_macro_attribute]
 pub fn derive_io(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -18,7 +18,11 @@ pub fn derive_io(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let data = match item {
         syn::Item::Struct(s) => s,
-        _ => return Error::new(Span::call_site(), "expect struct!").to_compile_error().into(),
+        _ => {
+            return Error::new(Span::call_site(), "expect struct!")
+                .to_compile_error()
+                .into()
+        }
     };
     let name = &data.ident;
 
@@ -26,23 +30,21 @@ pub fn derive_io(args: TokenStream, input: TokenStream) -> TokenStream {
         Ok(d) => d,
         Err(e) => return e.to_compile_error().into(),
     }
-        .iter()
-        .map(|t| {
-            t.expand(&name)
-        })
-        .fold(quote! {}, |acc, q| {
-            quote! {
-                #acc
-                #q
-            }
-        });
+    .iter()
+    .map(|t| t.expand(&name))
+    .fold(quote! {}, |acc, q| {
+        quote! {
+            #acc
+            #q
+        }
+    });
     (quote! {
         #data
         #defaults
         impl IOAccess for #name {}
-    }).into()
+    })
+    .into()
 }
-
 
 mod args_kw {
     syn::custom_keyword!(U8);
@@ -73,7 +75,12 @@ impl AccessTrait {
     }
 
     fn msg(&self, name: &Ident, method: &str) -> String {
-        format!("{}::{} for {} not implement!", self.trait_name().to_string(), method, name.to_string())
+        format!(
+            "{}::{} for {} not implement!",
+            self.trait_name().to_string(),
+            method,
+            name.to_string()
+        )
     }
 
     fn expand(&self, name: &Ident) -> proc_macro2::TokenStream {
@@ -163,13 +170,24 @@ struct Args(Punctuated<AccessTrait, Token![,]>);
 
 impl Args {
     fn defaults(&self) -> Result<Vec<AccessTrait>> {
-        let all_traits = vec![AccessTrait::U8, AccessTrait::U16, AccessTrait::U32, AccessTrait::U64, AccessTrait::Bytes];
+        let all_traits = vec![
+            AccessTrait::U8,
+            AccessTrait::U16,
+            AccessTrait::U32,
+            AccessTrait::U64,
+            AccessTrait::Bytes,
+        ];
         if self.0.is_empty() {
-            Err(Error::new(Span::call_site(), "At least one in [U8|U16|U32|U64|Bytes]!"))
+            Err(Error::new(
+                Span::call_site(),
+                "At least one in [U8|U16|U32|U64|Bytes]!",
+            ))
         } else {
-            Ok(all_traits.iter().filter(|&t| {
-                !self.0.iter().any(|&a| a == *t)
-            }).map(|t| { t.clone() }).collect::<Vec<_>>())
+            Ok(all_traits
+                .iter()
+                .filter(|&t| !self.0.iter().any(|&a| a == *t))
+                .map(|t| t.clone())
+                .collect::<Vec<_>>())
         }
     }
 }

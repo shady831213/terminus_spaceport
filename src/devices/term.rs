@@ -1,11 +1,11 @@
-extern crate termios;
-extern crate libc;
 extern crate ctrlc;
+extern crate libc;
+extern crate termios;
 
-use std::{io, fs};
-use std::io::{Stdout, Stdin, Stderr};
-use termios::{Termios, TCSANOW, ECHO, ICANON, tcsetattr};
+use std::io::{Stderr, Stdin, Stdout};
 use std::os::unix::io::{AsRawFd, RawFd};
+use std::{fs, io};
+use termios::{tcsetattr, Termios, ECHO, ICANON, TCSANOW};
 
 pub struct Term(Termios, libc::c_int, RawFd);
 
@@ -25,11 +25,7 @@ impl Term {
         let origin_termios = termios;
         termios.c_lflag &= !(ICANON | ECHO);
         tcsetattr(stdin_fd, TCSANOW, &termios)?;
-        Ok(Term(
-            origin_termios,
-            origin_fflag,
-            stdin_fd,
-        ))
+        Ok(Term(origin_termios, origin_fflag, stdin_fd))
     }
     pub fn stdin(&self) -> Stdin {
         io::stdin()
@@ -42,14 +38,11 @@ impl Term {
     }
 }
 
-lazy_static!(
+lazy_static! {
     pub static ref TERM: Term = Term::new().unwrap();
-);
+}
 
 pub fn term_exit() {
     tcsetattr(TERM.2, TCSANOW, &TERM.0).unwrap();
     unsafe { libc::fcntl(TERM.2, libc::F_SETFL, TERM.1) };
 }
-
-
-

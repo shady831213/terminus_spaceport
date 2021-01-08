@@ -1,6 +1,6 @@
 mod term;
 
-pub use term::{TERM, term_exit};
+pub use term::{term_exit, TERM};
 
 mod tuntap;
 

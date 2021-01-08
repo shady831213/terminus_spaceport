@@ -13,10 +13,9 @@ pub mod virtio;
 mod capi;
 
 mod utils;
-pub use utils::{EXIT_CTRL};
+pub use utils::EXIT_CTRL;
 
 pub mod devices;
 
 #[cfg(test)]
 mod test;
-

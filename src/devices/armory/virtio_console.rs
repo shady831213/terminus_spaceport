@@ -1,13 +1,12 @@
-use crate::memory::region::Region;
-use crate::memory::prelude::*;
-use std::rc::Rc;
-use crate::virtio::{Device, Queue, QueueClient, QueueSetting, Result, DeviceAccess, MMIODevice};
 use crate::devices::TERM;
-use std::io::{Write, ErrorKind, Read};
-use std::ops::Deref;
-use std::cmp::min;
 use crate::irq::IrqVecSender;
-
+use crate::memory::prelude::*;
+use crate::memory::region::Region;
+use crate::virtio::{Device, DeviceAccess, MMIODevice, Queue, QueueClient, QueueSetting, Result};
+use std::cmp::min;
+use std::io::{ErrorKind, Read, Write};
+use std::ops::Deref;
+use std::rc::Rc;
 
 struct VirtIOConsoleInputQueue {}
 
@@ -61,25 +60,22 @@ pub struct VirtIOConsoleDevice {
 
 impl VirtIOConsoleDevice {
     pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender) -> VirtIOConsoleDevice {
-        let mut virtio_device = Device::new(memory,
-                                            irq_sender,
-                                            1,
-                                            3, 0, 1,
-        );
+        let mut virtio_device = Device::new(memory, irq_sender, 1, 3, 0, 1);
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let input_queue = {
             let input = VirtIOConsoleInputQueue::new();
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, input)
         };
         let output_queue = {
-            let output = VirtIOConsoleOutputQueue::new(memory, virtio_device.get_irq_vec().sender(0).unwrap());
+            let output = VirtIOConsoleOutputQueue::new(
+                memory,
+                virtio_device.get_irq_vec().sender(0).unwrap(),
+            );
             Queue::new(&memory, QueueSetting { max_queue_size: 1 }, output)
         };
         virtio_device.add_queue(input_queue);
         virtio_device.add_queue(output_queue);
-        VirtIOConsoleDevice {
-            virtio_device,
-        }
+        VirtIOConsoleDevice { virtio_device }
     }
     pub fn console_read(&self) {
         let input_queue = self.virtio_device.get_queue(0);
@@ -93,13 +89,23 @@ impl VirtIOConsoleDevice {
             let ret = match TERM.stdin().lock().read(&mut buffer) {
                 Ok(l) => l,
                 Err(e) if e.kind() == ErrorKind::WouldBlock => 0,
-                Err(e) => panic!("{:?}", e)
+                Err(e) => panic!("{:?}", e),
             };
             if ret > 0 {
-                BytesAccess::write(self.virtio_device.memory().deref(), &desc.addr, &buffer[..ret]).unwrap();
+                BytesAccess::write(
+                    self.virtio_device.memory().deref(),
+                    &desc.addr,
+                    &buffer[..ret],
+                )
+                .unwrap();
                 input_queue.set_used(desc_head, ret as u32).unwrap();
                 input_queue.update_last_avail();
-                self.virtio_device.get_irq_vec().sender(0).unwrap().send().unwrap();
+                self.virtio_device
+                    .get_irq_vec()
+                    .sender(0)
+                    .unwrap()
+                    .send()
+                    .unwrap();
             }
         }
     }
@@ -133,6 +139,3 @@ impl BytesAccess for VirtIOConsole {
         Ok(0)
     }
 }
-
-
-

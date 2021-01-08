@@ -1,22 +1,25 @@
+use crate::memory::allocator::*;
+use crate::memory::region::*;
+use crate::memory::MemInfo;
+use crate::space::Space;
 use std::any::Any;
 use std::ffi::{c_void, CStr};
-use std::os::raw::c_char;
-use crate::space::Space;
-use crate::memory::region::*;
-use crate::memory::allocator::*;
-use crate::memory::MemInfo;
 use std::ops::Deref;
+use std::os::raw::c_char;
 use std::rc::Rc;
-
 
 #[no_mangle]
 extern "C" fn __ts_new_allocator(base: u64, size: u64) -> *const c_void {
-    Box::into_raw(Box::new(Box::new(Allocator::new(base, size)) as Box<dyn Any>)) as *const c_void
+    Box::into_raw(Box::new(
+        Box::new(Allocator::new(base, size)) as Box<dyn Any>
+    )) as *const c_void
 }
 
 #[no_mangle]
 extern "C" fn __ts_new_locked_allocator(base: u64, size: u64) -> *const c_void {
-    Box::into_raw(Box::new(Box::new(LockedAllocator::new(base, size)) as Box<dyn Any>)) as *const c_void
+    Box::into_raw(Box::new(
+        Box::new(LockedAllocator::new(base, size)) as Box<dyn Any>
+    )) as *const c_void
 }
 
 #[no_mangle]
@@ -27,7 +30,9 @@ extern "C" fn __ts_alloc_addr(a: &mut Box<dyn Any>, size: u64, align: u64) -> u6
     } else if let Some(allocator) = a.downcast_mut::<LockedAllocator>() {
         allocator.alloc(size, align)
     } else {
-        panic!("wrong type!allocator should be create by ts_new_allocator or ts_new_locked_allocator!")
+        panic!(
+            "wrong type!allocator should be create by ts_new_allocator or ts_new_locked_allocator!"
+        )
     };
 
     if let Some(i) = info {
@@ -40,19 +45,18 @@ extern "C" fn __ts_alloc_addr(a: &mut Box<dyn Any>, size: u64, align: u64) -> u6
 #[no_mangle]
 //unsafe raw pointer style
 extern "C" fn __ts_free_addr(a: *mut c_void, addr: u64) {
-    let abox = unsafe {
-        &mut *(a as *mut Box<dyn Any>)
-    };
+    let abox = unsafe { &mut *(a as *mut Box<dyn Any>) };
 
     if let Some(allocator) = abox.downcast_mut::<Allocator>() {
         allocator.free(addr)
     } else if let Some(allocator) = abox.downcast_mut::<LockedAllocator>() {
         allocator.free(addr)
     } else {
-        panic!("wrong type!allocator should be create by ts_new_allocator or ts_new_locked_allocator!")
+        panic!(
+            "wrong type!allocator should be create by ts_new_allocator or ts_new_locked_allocator!"
+        )
     }
 }
-
 
 #[no_mangle]
 extern "C" fn __ts_space() -> *mut Space {
@@ -60,16 +64,24 @@ extern "C" fn __ts_space() -> *mut Space {
 }
 
 #[no_mangle]
-extern "C" fn __ts_add_region(space: &mut Space, name: *const c_char, region: &Box<Rc<Region>>) -> *const Box<Rc<Region>> {
+extern "C" fn __ts_add_region(
+    space: &mut Space,
+    name: *const c_char,
+    region: &Box<Rc<Region>>,
+) -> *const Box<Rc<Region>> {
     let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
     match space.add_region(name, region.deref()) {
         Ok(r) => to_c_ptr(r),
-        Err(e) => panic!(format!("{:?}", e))
+        Err(e) => panic!(format!("{:?}", e)),
     }
 }
 
 #[no_mangle]
-extern "C" fn __ts_clean_region(space: &mut Space, name: *const c_char, region: *const Box<Rc<Region>>) {
+extern "C" fn __ts_clean_region(
+    space: &mut Space,
+    name: *const c_char,
+    region: *const Box<Rc<Region>>,
+) {
     space.clean(unsafe { CStr::from_ptr(name).to_str().unwrap() }, region)
 }
 
@@ -89,7 +101,12 @@ extern "C" fn __ts_delete_region(space: &mut Space, name: *const c_char) {
 }
 
 #[no_mangle]
-extern "C" fn __ts_alloc_region(heap: *const Box<Rc<Heap>>, size: u64, align: u64, lazy: bool) -> *const Box<Rc<Region>> {
+extern "C" fn __ts_alloc_region(
+    heap: *const Box<Rc<Heap>>,
+    size: u64,
+    align: u64,
+    lazy: bool,
+) -> *const Box<Rc<Region>> {
     match unsafe {
         if heap.is_null() {
             if lazy {
@@ -103,7 +120,7 @@ extern "C" fn __ts_alloc_region(heap: *const Box<Rc<Heap>>, size: u64, align: u6
         }
     } {
         Ok(region) => to_c_ptr(region),
-        Err(msg) => panic!(msg)
+        Err(msg) => panic!(msg),
     }
 }
 
@@ -133,7 +150,12 @@ extern "C" fn __ts_map_region(region: &Box<Rc<Region>>, base: u64) -> *const Box
 }
 
 #[no_mangle]
-extern "C" fn __ts_map_region_partial(region: &Box<Rc<Region>>, base: u64, offset: u64, size: u64) -> *const Box<Rc<Region>> {
+extern "C" fn __ts_map_region_partial(
+    region: &Box<Rc<Region>>,
+    base: u64,
+    offset: u64,
+    size: u64,
+) -> *const Box<Rc<Region>> {
     to_c_ptr(Region::remap_partial(base, region.deref(), offset, size))
 }
 
@@ -177,7 +199,6 @@ extern "C" fn __ts_region_read_u64(region: &Box<Rc<Region>>, addr: u64) -> u64 {
     U64Access::read(region.deref().deref(), &addr)
 }
 
-
 #[no_mangle]
 extern "C" fn __ts_space_write_u8(space: &Rc<Space>, addr: u64, data: u8) {
     space.write_u8(&addr, data).unwrap()
@@ -217,7 +238,6 @@ extern "C" fn __ts_space_read_u32(space: &Rc<Space>, addr: u64) -> u32 {
 extern "C" fn __ts_space_read_u64(space: &Rc<Space>, addr: u64) -> u64 {
     space.read_u64(&addr).unwrap()
 }
-
 
 fn to_c_ptr(obj: Rc<Region>) -> *const Box<Rc<Region>> {
     Box::into_raw(Box::new(Box::new(obj)))

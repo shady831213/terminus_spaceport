@@ -1,12 +1,14 @@
-use crate::memory::region::{Region, GHEAP};
-use crate::memory::prelude::*;
-use std::rc::Rc;
-use crate::virtio::{QueueClient, Queue, Result, Error, DescMeta, Device, QueueSetting, DeviceAccess, MMIODevice};
-use std::ops::Deref;
 use crate::irq::IrqVecSender;
+use crate::memory::prelude::*;
+use crate::memory::region::{Region, GHEAP};
+use crate::virtio::{
+    DescMeta, Device, DeviceAccess, Error, MMIODevice, Queue, QueueClient, QueueSetting, Result,
+};
 use std::fs;
 use std::fs::{File, OpenOptions};
+use std::ops::Deref;
 use std::os::unix::prelude::FileExt;
+use std::rc::Rc;
 
 const VIRTIO_BLK_T_IN: u32 = 0;
 const VIRTIO_BLK_T_OUT: u32 = 1;
@@ -35,7 +37,7 @@ impl VirtIOBlkConfig {
         match val {
             "ro" => VirtIOBlkConfig::RO,
             "rw" => VirtIOBlkConfig::RW,
-            _ => VirtIOBlkConfig::SNAPSHOT
+            _ => VirtIOBlkConfig::SNAPSHOT,
         }
     }
 }
@@ -46,7 +48,9 @@ struct VirtIOBlkDiskSnapshot {
 
 impl VirtIOBlkDiskSnapshot {
     fn new(snapshot: &Rc<Region>) -> VirtIOBlkDiskSnapshot {
-        VirtIOBlkDiskSnapshot { snapshot: snapshot.clone() }
+        VirtIOBlkDiskSnapshot {
+            snapshot: snapshot.clone(),
+        }
     }
 }
 
@@ -69,7 +73,7 @@ impl BytesAccess for VirtIOBlkDiskSnapshot {
 }
 
 struct VirtIOBlkFile {
-    fp: Rc<File>
+    fp: Rc<File>,
 }
 
 impl VirtIOBlkFile {
@@ -122,11 +126,25 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
         let mut write_descs: Vec<DescMeta> = vec![];
         let mut write_buffer: Vec<u8> = vec![];
         let mut read_buffer: Vec<u8> = vec![];
-        let (read_len, write_len) = queue.extract(desc_head, &mut read_buffer, &mut write_buffer, &mut read_descs, &mut write_descs, true, true)?;
+        let (read_len, write_len) = queue.extract(
+            desc_head,
+            &mut read_buffer,
+            &mut write_buffer,
+            &mut read_descs,
+            &mut write_descs,
+            true,
+            true,
+        )?;
         let mut header = VirtIOBlkHeader::default();
         let header_size = std::mem::size_of::<VirtIOBlkHeader>();
         if write_len as usize >= header_size {
-            unsafe { std::slice::from_raw_parts_mut((&mut header as *mut VirtIOBlkHeader) as *mut u8, header_size).copy_from_slice(&write_buffer[..header_size]) }
+            unsafe {
+                std::slice::from_raw_parts_mut(
+                    (&mut header as *mut VirtIOBlkHeader) as *mut u8,
+                    header_size,
+                )
+                .copy_from_slice(&write_buffer[..header_size])
+            }
         } else {
             return Err(Error::ClientError("invalid block header!".to_string()));
         }
@@ -135,7 +153,13 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
 
         match header.ty {
             VIRTIO_BLK_T_IN => {
-                if BytesAccess::read(&self.disk, &disk_offset, &mut read_buffer[..read_len as usize - 1]).is_ok() {
+                if BytesAccess::read(
+                    &self.disk,
+                    &disk_offset,
+                    &mut read_buffer[..read_len as usize - 1],
+                )
+                .is_ok()
+                {
                     read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_OK;
                 } else {
                     read_buffer[read_len as usize - 1] = VIRTIO_BLK_S_IOERR;
@@ -144,14 +168,29 @@ impl<T: BytesAccess> QueueClient for VirtIOBlkQueue<T> {
                 queue.set_used(desc_head, read_len as u32)?;
             }
             VIRTIO_BLK_T_OUT => {
-                if BytesAccess::write(&self.disk, &disk_offset, &write_buffer[header_size..]).is_ok() {
-                    U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_OK);
+                if BytesAccess::write(&self.disk, &disk_offset, &write_buffer[header_size..])
+                    .is_ok()
+                {
+                    U8Access::write(
+                        self.memory.deref(),
+                        &read_descs.first().unwrap().addr,
+                        VIRTIO_BLK_S_OK,
+                    );
                 } else {
-                    U8Access::write(self.memory.deref(), &read_descs.first().unwrap().addr, VIRTIO_BLK_S_IOERR);
+                    U8Access::write(
+                        self.memory.deref(),
+                        &read_descs.first().unwrap().addr,
+                        VIRTIO_BLK_S_IOERR,
+                    );
                 }
                 queue.set_used(desc_head, 1)?;
             }
-            _ => return Err(Error::ClientError(format!("invalid block ty {:#x}!", header.ty)))
+            _ => {
+                return Err(Error::ClientError(format!(
+                    "invalid block ty {:#x}!",
+                    header.ty
+                )))
+            }
         }
         queue.update_last_avail();
         self.irq_sender.send().unwrap();
@@ -166,28 +205,58 @@ pub struct VirtIOBlk {
 }
 
 impl VirtIOBlk {
-    pub fn new(memory: &Rc<Region>, irq_sender: IrqVecSender, num_queues: usize, file_name: &str, config: VirtIOBlkConfig) -> VirtIOBlk {
+    pub fn new(
+        memory: &Rc<Region>,
+        irq_sender: IrqVecSender,
+        num_queues: usize,
+        file_name: &str,
+        config: VirtIOBlkConfig,
+    ) -> VirtIOBlk {
         assert!(num_queues > 0);
-        let mut virtio_device = Device::new(memory,
-                                            irq_sender,
-                                            1,
-                                            2, 0, 0,
-        );
+        let mut virtio_device = Device::new(memory, irq_sender, 1, 2, 0, 0);
         virtio_device.get_irq_vec().set_enable_uncheck(0, true);
         let len = match config {
             VirtIOBlkConfig::RO => {
-                let file = Rc::new(OpenOptions::new().read(true).open(file_name).expect(&format!("can not open {}!", file_name)));
+                let file = Rc::new(
+                    OpenOptions::new()
+                        .read(true)
+                        .open(file_name)
+                        .expect(&format!("can not open {}!", file_name)),
+                );
                 for _ in 0..num_queues {
                     // virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
-                    virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkFile::new(&file), virtio_device.get_irq_vec().sender(0).unwrap())));
+                    virtio_device.add_queue(Queue::new(
+                        &memory,
+                        QueueSetting { max_queue_size: 16 },
+                        VirtIOBlkQueue::new(
+                            memory,
+                            VirtIOBlkFile::new(&file),
+                            virtio_device.get_irq_vec().sender(0).unwrap(),
+                        ),
+                    ));
                 }
                 file.metadata().unwrap().len()
             }
             VirtIOBlkConfig::RW => {
-                let file = Rc::new(OpenOptions::new().read(true).write(true).create(true).open(file_name).expect(&format!("can not open {}!", file_name)));
+                let file = Rc::new(
+                    OpenOptions::new()
+                        .read(true)
+                        .write(true)
+                        .create(true)
+                        .open(file_name)
+                        .expect(&format!("can not open {}!", file_name)),
+                );
                 for _ in 0..num_queues {
                     // virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
-                    virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkFile::new(&file), virtio_device.get_irq_vec().sender(0).unwrap())));
+                    virtio_device.add_queue(Queue::new(
+                        &memory,
+                        QueueSetting { max_queue_size: 16 },
+                        VirtIOBlkQueue::new(
+                            memory,
+                            VirtIOBlkFile::new(&file),
+                            virtio_device.get_irq_vec().sender(0).unwrap(),
+                        ),
+                    ));
                 }
                 file.metadata().unwrap().len()
             }
@@ -196,7 +265,15 @@ impl VirtIOBlk {
                 let snapshot = Region::remap(0, &GHEAP.alloc(content.len() as u64, 1).unwrap());
                 BytesAccess::write(snapshot.deref(), &0, &content).unwrap();
                 for _ in 0..num_queues {
-                    virtio_device.add_queue(Queue::new(&memory, QueueSetting { max_queue_size: 16 }, VirtIOBlkQueue::new(memory, VirtIOBlkDiskSnapshot::new(&snapshot), virtio_device.get_irq_vec().sender(0).unwrap())));
+                    virtio_device.add_queue(Queue::new(
+                        &memory,
+                        QueueSetting { max_queue_size: 16 },
+                        VirtIOBlkQueue::new(
+                            memory,
+                            VirtIOBlkDiskSnapshot::new(&snapshot),
+                            virtio_device.get_irq_vec().sender(0).unwrap(),
+                        ),
+                    ));
                 }
                 content.len() as u64
             }
@@ -212,11 +289,11 @@ impl DeviceAccess for VirtIOBlk {
     fn device(&self) -> &Device {
         &self.virtio_device
     }
-    fn config(&self, offset: u64, data:&mut[u8]) {
+    fn config(&self, offset: u64, data: &mut [u8]) {
         let len = data.len();
         let off = offset as usize;
-        if off < 8 && (off + len) <= 8{
-            data.copy_from_slice(&self.num_sectors.to_le_bytes()[off..off+len])
+        if off < 8 && (off + len) <= 8 {
+            data.copy_from_slice(&self.num_sectors.to_le_bytes()[off..off + len])
         }
     }
 }
@@ -234,7 +311,3 @@ impl BytesAccess for VirtIOBlk {
         Ok(0)
     }
 }
-
-
-
-
