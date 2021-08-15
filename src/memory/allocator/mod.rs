@@ -117,7 +117,7 @@ impl Allocator {
             self.free_blocks = List::cons(post_info, &self.free_blocks);
             self.alloced_blocks = alloced_blocks;
         } else {
-            panic!(format!("invalid free @{}", addr));
+            panic!("invalid free @{}", addr);
         }
     }
 }
