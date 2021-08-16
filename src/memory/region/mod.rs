@@ -41,7 +41,7 @@ pub trait U16Access: BytesAccess {
     fn write(&self, addr: &u64, data: u16) {
         assert!(
             addr.trailing_zeros() > 0,
-            format!("U16Access:unaligned addr:{:#x}", *addr)
+            "U16Access:unaligned addr:{:#x}", *addr
         );
         BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
@@ -49,7 +49,7 @@ pub trait U16Access: BytesAccess {
     fn read(&self, addr: &u64) -> u16 {
         assert!(
             addr.trailing_zeros() > 0,
-            format!("U16Access:unaligned addr:{:#x}", *addr)
+            "U16Access:unaligned addr:{:#x}", *addr
         );
         let mut bytes = [0 as u8; size_of::<u16>()];
         BytesAccess::read(self, addr, &mut bytes).unwrap();
@@ -61,7 +61,7 @@ pub trait U32Access: BytesAccess {
     fn write(&self, addr: &u64, data: u32) {
         assert!(
             addr.trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", *addr)
+            "U32Access:unaligned addr:{:#x}", *addr
         );
         BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
@@ -69,7 +69,7 @@ pub trait U32Access: BytesAccess {
     fn read(&self, addr: &u64) -> u32 {
         assert!(
             addr.trailing_zeros() > 1,
-            format!("U32Access:unaligned addr:{:#x}", *addr)
+            "U32Access:unaligned addr:{:#x}", *addr
         );
         let mut bytes = [0 as u8; size_of::<u32>()];
         BytesAccess::read(self, addr, &mut bytes).unwrap();
@@ -81,7 +81,7 @@ pub trait U64Access: BytesAccess {
     fn write(&self, addr: &u64, data: u64) {
         assert!(
             addr.trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", *addr)
+            "U64Access:unaligned addr:{:#x}", *addr
         );
         BytesAccess::write(self, addr, &data.to_le_bytes()).unwrap();
     }
@@ -89,7 +89,7 @@ pub trait U64Access: BytesAccess {
     fn read(&self, addr: &u64) -> u64 {
         assert!(
             addr.trailing_zeros() > 2,
-            format!("U64Access:unaligned addr:{:#x}", *addr)
+            "U64Access:unaligned addr:{:#x}", *addr
         );
         let mut bytes = [0 as u8; size_of::<u64>()];
         BytesAccess::read(self, addr, &mut bytes).unwrap();
@@ -420,12 +420,10 @@ impl Region {
                 && *va < self.info.base + self.info.size
                 && *va + size as u64 - 1 >= self.info.base
                 && *va + size as u64 - 1 < self.info.base + self.info.size,
-            format!(
                 "addr {:#x}-{:#x} translate fail!range {:#x?}",
                 *va,
                 *va + size as u64 - 1,
                 self.info
-            )
         );
         match &self.memory {
             Memory::Remap(remap) => Some(va - self.info.base + remap.info.base),

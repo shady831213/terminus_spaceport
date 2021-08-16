@@ -72,7 +72,7 @@ extern "C" fn __ts_add_region(
     let name = unsafe { CStr::from_ptr(name).to_str().unwrap() };
     match space.add_region(name, region.deref()) {
         Ok(r) => to_c_ptr(r),
-        Err(e) => panic!(format!("{:?}", e)),
+        Err(e) => panic!("{:?}", e),
     }
 }
 
@@ -91,7 +91,7 @@ extern "C" fn __ts_get_region(space: &Space, name: *const c_char) -> *const Box<
     if let Some(r) = space.get_region(name) {
         to_c_ptr(r)
     } else {
-        panic!(format!("no region {}", name))
+        panic!("no region {}", name)
     }
 }
 
@@ -120,7 +120,7 @@ extern "C" fn __ts_alloc_region(
         }
     } {
         Ok(region) => to_c_ptr(region),
-        Err(msg) => panic!(msg),
+        Err(msg) => panic!("{}", msg),
     }
 }
 
