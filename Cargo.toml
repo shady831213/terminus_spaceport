@@ -2,7 +2,7 @@
 name = "terminus-spaceport"
 version = "0.1.0"
 authors = ["shady831213 <shady831213@126.com>"]
-edition = "2018"
+edition = "2021"
 license = "MIT"
 description = "Memory utils libary for c/c++ and verilog simulation"
 include= ["csrc", "ctest", "vsrc", "vtest", "src", "build.sh"]
