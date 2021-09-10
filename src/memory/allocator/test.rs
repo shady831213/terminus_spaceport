@@ -129,7 +129,7 @@ fn basic_concurrency_alloc() {
             //            println!("send, done!");
             done.send(result).unwrap();
         });
-    };
+    }
     let mut addrs = vec![];
 
     do_job(|a| a.alloc(4, 1), &tx, &allocator);

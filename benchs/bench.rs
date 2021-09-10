@@ -9,7 +9,7 @@ use rand::Rng;
 use std::ops::Deref;
 use terminus_spaceport::memory::region::*;
 use terminus_spaceport::space::Space;
-
+use std::ptr::{null_mut,null};
 #[cfg(feature = "memprof")]
 #[global_allocator]
 static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
